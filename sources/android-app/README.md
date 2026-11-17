@@ -1,3 +1,9 @@
+# 北化课表（上游「教务助手」的修改版）
+
+> 本目录代码来自 [znjhahaha/zhengfang-apk](https://github.com/znjhahaha/zhengfang-apk)（GPL-3.0），
+> 针对北京化工大学做了适配与功能扩展，**已修改**。改动清单见仓库根目录 `CREDITS.md` 与 `CHANGELOG.md`。
+> 下方内容为上游原始说明，保留以便对照。
+
 <p align="center">
   <img src="pic/v1.0.68/01-courses.jpg" width="170"/>
   <img src="pic/v1.0.68/03-timetable.jpg" width="170"/>

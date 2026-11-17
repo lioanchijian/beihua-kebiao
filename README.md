@@ -1,6 +1,16 @@
-# 北化课表工作区
+# 北化课表
 
-这个目录是北化课表项目的唯一工作目录，App 源码、网站源码、统计服务、发布包和调试资料都集中在这里。
+北京化工大学的课表 App：课表、成绩、空闲教室、抢课，外加好友与课表互传。
+
+- 官网：https://buctkb.cn
+- 仓库：https://github.com/lioanchijian/beihua-kebiao
+- 许可证：[GPL-3.0](LICENSE)
+
+> **关于来源**：本项目是基于 [znjhahaha/zhengfang-apk](https://github.com/znjhahaha/zhengfang-apk)（教务助手，GPL-3.0）的
+> **修改版**，不是原创项目。上游版权归原作者所有，我们做了哪些改动、如何遵守 GPL-3.0，
+> 都写在 [CREDITS.md](CREDITS.md) 里，二次分发前请务必读一遍。
+
+这个仓库是北化课表项目的唯一工作目录，App 源码、网站源码、统计服务、发布包和调试资料都集中在这里。
 
 ## 目录结构
 
@@ -19,7 +29,7 @@
 ## App 构建
 
 ```powershell
-cd "D:\lwh\北化课表 - 副本\sources\android-app"
+cd sources/android-app
 .\gradlew.bat assembleRelease
 ```
 
@@ -49,6 +59,11 @@ app\build\outputs\apk\release\app-release.apk
 
 ## 当前版本
 
-- App：`1.0.9.10 (100)`
-- 网站：`1.0.9.10`
+- App：`1.0.9.13 (103)`
+- 网站：`1.0.9.13`
 - 统计接口：`https://buctkb.cn/api/stats/ping`
+
+## 开源协议
+
+本项目以 **GPL-3.0** 发布，完整源码即本仓库。再分发请保留 `LICENSE`、[CREDITS.md](CREDITS.md)
+以及源码中的原始版权声明，并说明你的修改。
