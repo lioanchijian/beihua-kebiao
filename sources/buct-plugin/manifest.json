@@ -1,0 +1,64 @@
+{
+  "id": "cn.edu.buct.zf",
+  "name": "北京化工大学",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "kind": "extension",
+  "extends": "builtin.zf",
+  "entry": "index.js",
+  "description": "北京化工大学正方教务（jwglxt）适配。支持课表与成绩查询，三学期（第一学期/第二学期/小学期），按周次显示课表，默认节次时间与校历周次与学校自动对齐。本插件仅供交流学习使用。",
+  "capabilities": [
+    "study.terms",
+    "study.schedule",
+    "study.calendar"
+  ],
+  "network": [
+    {
+      "origin": "https://jwglxt.buct.edu.cn",
+      "pathPrefix": "/jwglxt/kbcx/xskbcx_cxXskbcxIndex.html",
+      "methods": [
+        "GET"
+      ],
+      "purposes": [
+        "query"
+      ],
+      "requiredQuery": {
+        "gnmkdm": "N2151"
+      }
+    },
+    {
+      "origin": "https://jwglxt.buct.edu.cn",
+      "pathPrefix": "/jwglxt/kbcx/xskbcx_cxXsKb.html",
+      "methods": [
+        "POST"
+      ],
+      "purposes": [
+        "query"
+      ],
+      "requiredQuery": {
+        "gnmkdm": "N2151"
+      }
+    }
+  ],
+  "school": {
+    "id": "cn.edu.buct.zf",
+    "name": "北京化工大学",
+    "domain": "jwglxt.buct.edu.cn",
+    "protocol": "https",
+    "basePath": "/jwglxt",
+    "academicSystem": "zf",
+    "allowedAcademicHosts": [
+      "jwglxt.buct.edu.cn"
+    ],
+    "pageCharset": "UTF-8"
+  },
+  "matches": [
+    {
+      "host": "jwglxt.buct.edu.cn",
+      "pathPrefix": "/jwglxt"
+    }
+  ],
+  "files": {
+    "index.js": "d890f33b181a145410f81651dd94331315b0bcc737ace4d273ba8eb664eaddae"
+  }
+}

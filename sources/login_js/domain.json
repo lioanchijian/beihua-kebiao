@@ -1,0 +1,8 @@
+{
+    "self": "https://sidself.buct.edu.cn/cas-success",
+    "cas_server": "https://sidportal.buct.edu.cn",
+    "link_server": "https://sidself.buct.edu.cn/linkid/protected",
+    "sso": "https://sidportal.buct.edu.cn",
+    "sso_prefix": "",
+    "portal": "https://121.195.149.23"
+}

@@ -1,0 +1,6 @@
+backup/
+*.apk
+*.zip
+app/build/
+.gradle/
+private/

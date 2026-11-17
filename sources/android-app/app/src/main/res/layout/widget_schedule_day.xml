@@ -1,0 +1,1166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#80000000"
+    android:padding="8dp">
+
+    <!-- 标题栏 -->
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="今日课表"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:gravity="center"
+        android:paddingBottom="4dp" />
+
+    <!-- 日期栏：9月23日 · 周三 · 第4周 -->
+    <TextView
+        android:id="@+id/widget_day_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="今天"
+        android:textSize="12sp"
+        android:textColor="#FFFFFF"
+        android:gravity="center"
+        android:paddingBottom="4dp" />
+
+    <!-- 日期导航：◀ 回到今天 ▶ -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/widget_prev_day"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="◀"
+            android:textSize="14sp"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:paddingLeft="12dp"
+            android:paddingTop="4dp"
+            android:paddingRight="12dp"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/widget_back_today"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="回到今天"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/widget_next_day"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▶"
+            android:textSize="14sp"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:paddingLeft="12dp"
+            android:paddingTop="4dp"
+            android:paddingRight="12dp"
+            android:paddingBottom="4dp" />
+
+    </LinearLayout>
+
+    <!-- 当日课程/考试卡片：按数量切换卡组，weight 均分占满 -->
+    <LinearLayout
+        android:id="@+id/day_cards"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+    <!-- 卡组1（当天1节课时启用） -->
+    <LinearLayout
+        android:id="@+id/day_cards_1"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 卡1 -->
+        <LinearLayout
+            android:id="@+id/dc1_card1_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc1_card1_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc1_card1_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc1_card1_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 卡组2（当天2节课时启用） -->
+    <LinearLayout
+        android:id="@+id/day_cards_2"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 卡1 -->
+        <LinearLayout
+            android:id="@+id/dc2_card1_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc2_card1_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc2_card1_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc2_card1_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡2 -->
+        <LinearLayout
+            android:id="@+id/dc2_card2_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc2_card2_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc2_card2_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc2_card2_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 卡组3（当天3节课时启用） -->
+    <LinearLayout
+        android:id="@+id/day_cards_3"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 卡1 -->
+        <LinearLayout
+            android:id="@+id/dc3_card1_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc3_card1_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc3_card1_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc3_card1_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡2 -->
+        <LinearLayout
+            android:id="@+id/dc3_card2_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc3_card2_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc3_card2_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc3_card2_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡3 -->
+        <LinearLayout
+            android:id="@+id/dc3_card3_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc3_card3_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc3_card3_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc3_card3_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 卡组4（当天4节课时启用） -->
+    <LinearLayout
+        android:id="@+id/day_cards_4"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 卡1 -->
+        <LinearLayout
+            android:id="@+id/dc4_card1_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc4_card1_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card1_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card1_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡2 -->
+        <LinearLayout
+            android:id="@+id/dc4_card2_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc4_card2_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card2_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card2_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡3 -->
+        <LinearLayout
+            android:id="@+id/dc4_card3_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc4_card3_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card3_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card3_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡4 -->
+        <LinearLayout
+            android:id="@+id/dc4_card4_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc4_card4_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card4_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc4_card4_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 卡组5（当天5节课时启用） -->
+    <LinearLayout
+        android:id="@+id/day_cards_5"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 卡1 -->
+        <LinearLayout
+            android:id="@+id/dc5_card1_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc5_card1_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card1_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card1_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡2 -->
+        <LinearLayout
+            android:id="@+id/dc5_card2_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc5_card2_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card2_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card2_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡3 -->
+        <LinearLayout
+            android:id="@+id/dc5_card3_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc5_card3_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card3_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card3_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡4 -->
+        <LinearLayout
+            android:id="@+id/dc5_card4_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc5_card4_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card4_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card4_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡5 -->
+        <LinearLayout
+            android:id="@+id/dc5_card5_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc5_card5_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card5_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc5_card5_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 卡组6（当天6节课时启用） -->
+    <LinearLayout
+        android:id="@+id/day_cards_6"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 卡1 -->
+        <LinearLayout
+            android:id="@+id/dc6_card1_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc6_card1_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card1_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card1_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡2 -->
+        <LinearLayout
+            android:id="@+id/dc6_card2_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc6_card2_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card2_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card2_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡3 -->
+        <LinearLayout
+            android:id="@+id/dc6_card3_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc6_card3_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card3_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card3_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡4 -->
+        <LinearLayout
+            android:id="@+id/dc6_card4_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc6_card4_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card4_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card4_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡5 -->
+        <LinearLayout
+            android:id="@+id/dc6_card5_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc6_card5_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card5_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card5_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <!-- 卡6 -->
+        <LinearLayout
+            android:id="@+id/dc6_card6_root"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:layout_marginLeft="2dp"
+            android:layout_marginRight="2dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:paddingLeft="10dp"
+            android:paddingTop="6dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:id="@+id/dc6_card6_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="课名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card6_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="第X-Y节 HH:MM-HH:MM"
+                android:textSize="12sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dc6_card6_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="地点·老师"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

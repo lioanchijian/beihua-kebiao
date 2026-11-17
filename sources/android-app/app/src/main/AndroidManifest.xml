@@ -1,0 +1,170 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- 鍚庡彴鏈嶅姟鏉冮檺 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- 瀹氭椂浠诲姟鏉冮檺 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
+    <!-- 搴旂敤鏇存柊鏉冮檺 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:name=".CourseApplication"
+        android:allowBackup="true"
+        android:usesCleartextTraffic="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CourseSelector"
+        tools:targetApi="31">
+
+        <provider
+            android:name=".manager.AppearanceThemeProvider"
+            android:authorities="${applicationId}.appearance"
+            android:exported="false" />
+        
+        <!-- 绔栧睆閿佸畾锛氭暣濂楀嚑浣曟槸鎸夌珫灞忔墜鏈鸿皟鐨勶紝妯睆鍙敤楂樺彧鍓╃害 360dp锛?
+             椤舵爮鍔犲簳鏍忎細鍚冩帀鍏垚锛岄偅鏄竴濂椾粠鏈獙杩囩殑甯冨眬 -->
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/Theme.CourseSelector.Starting"
+            android:configChanges="uiMode"
+            android:enableOnBackInvokedCallback="true"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".LoginActivity"
+            android:theme="@style/Theme.CourseSelector.Starting"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".CookieWebViewActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".AcademicWebViewActivity"
+            android:configChanges="uiMode"
+            android:process=":academic_webview"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CourseDetailActivity" android:exported="false" android:configChanges="uiMode" />
+        <activity
+            android:name=".SurveyWebViewActivity"
+            android:exported="false"
+            android:configChanges="uiMode"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        
+        <!-- Background grab service -->
+        <service
+            android:name=".service.GrabService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        
+        <!-- Scheduled grab alarm receiver -->
+        <receiver android:name=".schedule.CourseReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".schedule.ExamReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".receiver.GrabAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.tyust.course.action.SCHEDULED_GRAB" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 妗岄潰璇捐〃灏忕粍浠?-->
+        <receiver
+            android:name=".widget.ScheduleWidget"
+            android:exported="true"
+            android:label="课表小组件">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_schedule_info" />
+        </receiver>
+
+        <!-- 璇捐〃灏忕粍浠?Service -->
+        <service
+            android:name=".widget.ScheduleWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- 浠婃棩璇捐〃灏忕粍浠?-->
+        <receiver
+            android:name=".widget.ScheduleDayWidget"
+            android:exported="true"
+            android:label="今日课表小组件">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_schedule_day_info" />
+        </receiver>
+
+        <!-- 浠婃棩璇捐〃灏忕粍浠?Service -->
+        <service
+            android:name=".widget.ScheduleDayWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        
+        <!-- FileProvider for sharing iCal files -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+        
+    </application>
+
+</manifest>
+
+
+
