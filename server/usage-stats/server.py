@@ -29,6 +29,12 @@ def init():
       created_at TEXT NOT NULL, read_by_user INTEGER DEFAULT 0, read_by_admin INTEGER DEFAULT 0);
     CREATE INDEX IF NOT EXISTS idx_fb_thread ON fb_messages(install_id, id);
     """); c.commit()
+    # 昵称唯一（尽力而为：历史库若已有重名则跳过，不影响启动）
+    try:
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_fb_nickname ON fb_users(nickname)")
+        c.commit()
+    except sqlite3.DatabaseError:
+        c.rollback()
     fb_ensure_admin(c)
     c.close()
 
@@ -54,11 +60,21 @@ def fb_ensure_admin(c):
     c.commit()
 
 def fb_new_display_id(c):
+    """生成一个当前库里不存在的短号。
+
+    短号空间 = 32^6 ≈ 10.7 亿（字母表已去掉 0/O/1/I，避免抄错）。
+    这里先查重；真正的"绝不重复"由 display_id 的 UNIQUE 约束 + 插入冲突重试保证。
+    """
     for _ in range(30):
         did = "BH-" + "".join(secrets.choice(FB_ALPHABET) for _ in range(6))
         if not c.execute("SELECT 1 FROM fb_users WHERE display_id=?", (did,)).fetchone():
             return did
-    return "BH-" + secrets.token_hex(4).upper()
+    # 极端情况（6 位空间接近用尽）：退化为 10 位短号继续保证唯一
+    for _ in range(30):
+        did = "BH-" + "".join(secrets.choice(FB_ALPHABET) for _ in range(10))
+        if not c.execute("SELECT 1 FROM fb_users WHERE display_id=?", (did,)).fetchone():
+            return did
+    raise RuntimeError("短号空间异常，请检查 fb_users 表")
 
 def fb_new_nickname(c):
     for _ in range(30):
@@ -112,23 +128,36 @@ def fb_clean_nickname(raw):
         return None
     return name
 
-def fb_register(c, install_id, version, platform):
-    """幂等注册：同一 install_id 反复调用返回同一条身份。"""
+def fb_register(c, install_id, version, platform, tries=12):
+    """幂等注册：同一 install_id 反复调用返回同一条身份。
+
+    短号绝不重复由两层保证：
+      1) fb_users.display_id 上有 UNIQUE 约束（数据库层硬约束）；
+      2) 并发注册时两个请求可能撞同一个短号，插入冲突会抛 IntegrityError，
+         这里捕获后重新生成，而不是把 500 抛给用户（token 撞了同样处理）。
+    """
     now = fb_now()
-    row = c.execute("SELECT * FROM fb_users WHERE install_id=?", (install_id,)).fetchone()
-    if row:
-        c.execute("UPDATE fb_users SET last_seen=?, version=? WHERE install_id=?", (now, version, install_id))
-        c.commit()
-        return row
-    display_id = fb_new_display_id(c)
-    nickname = fb_new_nickname(c)
-    token = secrets.token_urlsafe(32)
-    c.execute(
-        "INSERT INTO fb_users(install_id, display_id, nickname, token, created_at, last_seen, version) VALUES(?,?,?,?,?,?,?)",
-        (install_id, display_id, nickname, token, now, now, version))
-    c.commit()
-    fb_add_message(c, install_id, "admin", FB_WELCOME)
-    return c.execute("SELECT * FROM fb_users WHERE install_id=?", (install_id,)).fetchone()
+    for _ in range(tries):
+        row = c.execute("SELECT * FROM fb_users WHERE install_id=?", (install_id,)).fetchone()
+        if row:
+            c.execute("UPDATE fb_users SET last_seen=?, version=? WHERE install_id=?", (now, version, install_id))
+            c.commit()
+            return row
+        display_id = fb_new_display_id(c)
+        nickname = fb_new_nickname(c)
+        token = secrets.token_urlsafe(32)
+        try:
+            c.execute(
+                "INSERT INTO fb_users(install_id, display_id, nickname, token, created_at, last_seen, version) VALUES(?,?,?,?,?,?,?)",
+                (install_id, display_id, nickname, token, now, now, version))
+            c.commit()
+        except sqlite3.IntegrityError:
+            # 短号/token 被别人抢先占了（或同 install_id 并发注册），重新来一轮
+            c.rollback()
+            continue
+        fb_add_message(c, install_id, "admin", FB_WELCOME)
+        return c.execute("SELECT * FROM fb_users WHERE install_id=?", (install_id,)).fetchone()
+    raise RuntimeError("短号分配冲突，请重试")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -430,6 +459,13 @@ def fb_admin_page(token):
     return FB_ADMIN_HTML.replace("__TOKEN__", token)
 
 
+class Server(ThreadingHTTPServer):
+    """并发更稳：默认 backlog 只有 5，新版本上线瞬间大量注册会被 reset。"""
+    daemon_threads = True
+    allow_reuse_address = True
+    request_queue_size = 256
+
+
 if __name__ == "__main__":
     init()
-    ThreadingHTTPServer(("127.0.0.1", 8090), Handler).serve_forever()
+    Server(("127.0.0.1", 8090), Handler).serve_forever()

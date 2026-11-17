@@ -88,6 +88,8 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
     private var secondarySmsPhoneMask by mutableStateOf("")
     private var secondarySmsSending by mutableStateOf(false)
     private var secondarySmsSubmitting by mutableStateOf(false)
+    /** 对应学校认证页的「记住该设备」 */
+    private var secondarySmsRememberDevice by mutableStateOf(true)
     private var secondarySmsSentUntil by mutableStateOf(0L)
     private var secondarySmsCaptchaBytes by mutableStateOf<ByteArray?>(null)
     private var smsCodeSentState by mutableStateOf(false)
@@ -237,6 +239,8 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
                     secondarySmsCaptchaBytes = secondarySmsCaptchaBytes,
                     secondarySmsSending = secondarySmsSending,
                     secondarySmsSubmitting = secondarySmsSubmitting,
+                    secondarySmsRememberDevice = secondarySmsRememberDevice,
+                    onSecondarySmsRememberChange = { secondarySmsRememberDevice = it },
                     onSecondarySmsSend = { captcha -> sendSecondarySmsCode(captcha) },
                     onSecondarySmsSubmit = { code -> submitSecondarySmsCode(code) },
                     onSecondarySmsCancel = {
@@ -1389,7 +1393,7 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
         }
         secondarySmsSubmitting = true
         errorMessage = null
-        buctGateway.submitSecondarySmsCode(code.trim(), object : PasswordLoginCallback {
+        buctGateway.submitSecondarySmsCode(code.trim(), secondarySmsRememberDevice, object : PasswordLoginCallback {
             override fun onSuccess(cookie: String) {
                 runOnUiThread {
                     if (selectedLoginSchool?.id != school.id) {

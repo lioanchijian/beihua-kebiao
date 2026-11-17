@@ -25,6 +25,7 @@ class ScheduleSettingsManager internal constructor(private var prefs: SharedPref
         private const val KEY_PERIOD_HEIGHT = "period_height"
         private const val KEY_SHOW_OTHER_WEEK = "show_other_week"
         private const val KEY_WIDGET_FONT_SCALE = "widget_font_scale"
+        private const val KEY_WIDGET_TITLE = "widget_title"
 
         const val MIN_PERIOD_HEIGHT = 32
         const val MAX_PERIOD_HEIGHT = 112
@@ -142,7 +143,17 @@ class ScheduleSettingsManager internal constructor(private var prefs: SharedPref
             prefs?.edit()?.putFloat(scopedKey(KEY_WIDGET_FONT_SCALE), clamped)?.apply()
             revision++
         }
-    
+
+    /** 小组件全局默认标题（空 = 用「我的课表 / 今日课表」，不再拼接学员姓名）。 */
+    var widgetTitle: String
+        get() = prefs?.getString(KEY_WIDGET_TITLE, "") ?: ""
+        set(value) {
+            val trimmed = value.trim().take(12)
+            if (widgetTitle == trimmed) return
+            prefs?.edit()?.putString(KEY_WIDGET_TITLE, trimmed)?.apply()
+            revision++
+        }
+
     // ============ 第一周日期 ============
     
     var semesterStartDate: Long

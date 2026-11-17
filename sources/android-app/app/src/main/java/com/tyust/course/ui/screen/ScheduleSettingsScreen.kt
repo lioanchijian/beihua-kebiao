@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Height
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Visibility
@@ -110,6 +111,7 @@ fun ScheduleSettingsScreen(
     var showPeriodHeightPicker by remember { mutableStateOf(false) }
     var showOtherWeek by remember { mutableStateOf(manager.showOtherWeekCourses) }
     var showWidgetFontDialog by remember { mutableStateOf(false) }
+    var showWidgetTitleDialog by remember { mutableStateOf(false) }
     var editingPeriod by remember { mutableStateOf<PeriodTime?>(null) }
 
     val dateFormat = remember { SimpleDateFormat("yyyy年M月d日", Locale.CHINA) }
@@ -298,8 +300,18 @@ fun ScheduleSettingsScreen(
                                 subtitle = remember(widgetFontRevision) {
                                     "当前 ${(manager.widgetFontScale * 100).roundToInt()}%"
                                 },
-                                showDivider = false,
+                                showDivider = true,
                                 onClick = { showWidgetFontDialog = true }
+                            )
+                            InsetGroupedRow(
+                                icon = Icons.Outlined.Edit,
+                                iconTint = Color(0xFF0A84FF),
+                                title = "小组件默认标题",
+                                subtitle = remember(widgetFontRevision) {
+                                    manager.widgetTitle.ifBlank { "未设置，用「我的课表 / 今日课表」" }
+                                },
+                                showDivider = false,
+                                onClick = { showWidgetTitleDialog = true }
                             )
                         }
                     }
@@ -390,6 +402,12 @@ fun ScheduleSettingsScreen(
             if (showWidgetFontDialog) {
                 WidgetFontScaleDialog(
                     onDismiss = { showWidgetFontDialog = false }
+                )
+            }
+
+            if (showWidgetTitleDialog) {
+                WidgetTitleDialog(
+                    onDismiss = { showWidgetTitleDialog = false }
                 )
             }
 

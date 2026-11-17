@@ -150,7 +150,19 @@
             android:name=".widget.ScheduleDayWidgetService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
-        
+
+        <!-- 小组件配置页：桌面首次添加或点击小组件标题时进入 -->
+        <activity
+            android:name=".ui.widget.WidgetConfigActivity"
+            android:exported="true"
+            android:label="小组件设置"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.CourseSelector">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <!-- FileProvider for sharing iCal files -->
         <provider
             android:name="androidx.core.content.FileProvider"

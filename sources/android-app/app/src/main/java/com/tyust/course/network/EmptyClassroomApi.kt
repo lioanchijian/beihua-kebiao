@@ -25,6 +25,9 @@ data class EmptyClassroom(
 data class EmptyClassroomCampus(val id: Int, val label: String)
 
 object EmptyClassroomApi {
+    /** 教务侧表示「未登录」的 HTTP 状态码。 */
+    private val SESSION_EXPIRED_HTTP_CODES = setOf(401, 403, 901)
+
     private val fakeRoomPattern = Regex("^北\\d.*")
     val campuses = listOf(
         EmptyClassroomCampus(0, "全部"),
@@ -95,20 +98,73 @@ object EmptyClassroomApi {
                     response.use { result ->
                         if (!result.isSuccessful) {
                             if (continuation.isActive) {
-                                continuation.resumeWithException(IOException("HTTP ${result.code}"))
+                                // 北化教务未登录时直接回 HTTP 901（也有 401/403 的情况）
+                                continuation.resumeWithException(
+                                    if (result.code in SESSION_EXPIRED_HTTP_CODES) {
+                                        SessionExpiredException(result.code)
+                                    } else {
+                                        IOException("HTTP ${result.code}")
+                                    }
+                                )
                             }
                             return
                         }
                         val body = result.body?.string().orEmpty()
+                        val expiredCode = expiredBusinessCode(body)
+                        if (expiredCode != null) {
+                            if (continuation.isActive) {
+                                continuation.resumeWithException(SessionExpiredException(expiredCode))
+                            }
+                            return
+                        }
                         val parsed = runCatching { parse(body) }
                         if (continuation.isActive) {
                             parsed.onSuccess { continuation.resume(it) }
-                                .onFailure { continuation.resumeWithException(it) }
+                                .onFailure {
+                                    // 被网关重定向成登录页时 JSON 解析会失败，这里再兜一层
+                                    continuation.resumeWithException(
+                                        if (looksLikeLoginPage(body)) SessionExpiredException(901) else it
+                                    )
+                                }
                         }
                     }
                 }
             }
         )
+    }
+
+    /**
+     * 正方接口有时 HTTP 200 但业务码表示未登录。
+     * 返回非空即视为会话失效，值为业务码（901 等）。
+     */
+    private fun expiredBusinessCode(body: String): Int? {
+        val trimmed = body.trim()
+        if (!trimmed.startsWith("{")) return null
+        val root = runCatching { JSONObject(trimmed) }.getOrNull() ?: return null
+        val raw = when {
+            root.has("code") -> root.optString("code", "")
+            root.has("status") -> root.optString("status", "")
+            else -> ""
+        }.trim()
+        val code = raw.toIntOrNull() ?: return null
+        return code.takeIf { it == 901 || it == 401 || it == 403 }
+    }
+
+    /** 登录页兜底判定：网关拦截后返回的是统一身份认证 HTML 而不是 JSON。 */
+    private fun looksLikeLoginPage(body: String): Boolean {
+        if (body.isBlank()) return false
+        val lower = body.lowercase()
+        val markers = listOf(
+            "authserver/login",
+            "loginname",
+            "统一身份认证",
+            "用户登录",
+            "请先登录",
+            "login_form",
+            "caslogin"
+        )
+        val hasHtml = lower.contains("<html") || lower.contains("<form")
+        return hasHtml && markers.any { lower.contains(it) }
     }
 
     private fun parse(body: String): List<EmptyClassroom> {

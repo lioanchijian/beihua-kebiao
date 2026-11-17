@@ -108,6 +108,25 @@ fun ScheduleRoute() {
     val sessions = UserManager.getInstance().sessionState
     val session by sessions.state.collectAsState()
     val requests = remember { com.tyust.course.manager.SessionRequestGate(sessions) }
+    var showAccountSwitcher by remember { mutableStateOf(false) }
+    val savedAccounts = remember(routeAccountKey, showAccountSwitcher) {
+        runCatching { UserManager.getInstance().savedAccounts }.getOrNull().orEmpty()
+    }
+    val accountLabel = remember(routeAccountKey) {
+        UserManager.getInstance().studentName?.takeIf { it.isNotBlank() } ?: "切换账号"
+    }
+    fun switchAccount(key: String) {
+        showAccountSwitcher = false
+        val user = UserManager.getInstance()
+        if (key == user.currentAccountKey) return
+        // 切号前取消在途请求，避免旧账号的响应写进新账号的缓存
+        requests.cancelAll()
+        if (user.switchToAccount(key)) {
+            com.tyust.course.ui.system.GlassToaster.show("已切换账号")
+        } else {
+            com.tyust.course.ui.system.GlassToaster.show("账号切换失败，请重新登录")
+        }
+    }
     DisposableEffect(requests) { onDispose { requests.cancelAll() } }
     val restoredSnapshot = remember(routeAccountKey) {
         ScheduleRouteMemoryCache.get(routeAccountKey)
@@ -542,8 +561,22 @@ fun ScheduleRoute() {
                     com.tyust.course.ui.screen.ExamScheduleSharedCache.examList
                 )
             }
-        }
+        },
+        accountLabel = accountLabel,
+        onAccountClick = { showAccountSwitcher = true }
     )
+    }
+    if (showAccountSwitcher) {
+        com.tyust.course.ui.screen.AccountSwitcherDialog(
+            accounts = savedAccounts,
+            currentKey = UserManager.getInstance().currentAccountKey,
+            onSelect = { switchAccount(it) },
+            onManage = {
+                showAccountSwitcher = false
+                showSettingsDialog = true
+            },
+            onDismiss = { showAccountSwitcher = false }
+        )
     }
     emptyClassroomRequest?.let { request ->
         EmptyClassroomDialog(

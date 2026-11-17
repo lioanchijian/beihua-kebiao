@@ -138,6 +138,24 @@ fun SettingsRoute(
     val recovery by com.tyust.course.utils.SessionRenewer.state.collectAsState()
     val isRefreshingCookie = recovery.token == session.token &&
         recovery.phase == com.tyust.course.utils.RecoveryPhase.Restoring
+    var showFeedback by remember { mutableStateOf(false) }
+    var feedbackUnread by remember { mutableIntStateOf(0) }
+    var showWidgetSettings by remember { mutableStateOf(false) }
+    var widgetCount by remember {
+        mutableIntStateOf(com.tyust.course.ui.screen.listWidgetInstances(context).size)
+    }
+
+    // 从小组件管理页回来时重新数一遍（用户可能在桌面增删过实例）
+    LaunchedEffect(showWidgetSettings) {
+        widgetCount = com.tyust.course.ui.screen.listWidgetInstances(context).size
+    }
+
+    // 未读数：只有已经开通过反馈通道（本地有 token）才拉，避免给没用过的人凭空注册
+    LaunchedEffect(Unit) {
+        if (com.tyust.course.network.FeedbackApi.token(context) != null) {
+            feedbackUnread = com.tyust.course.network.FeedbackApi.unread(context) ?: 0
+        }
+    }
     val relogin = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     
     val currentVersion = remember {
@@ -263,35 +281,19 @@ fun SettingsRoute(
     
     fun refreshCookieManually() {
         if (isDemoMode || isRefreshingCookie) return
-        if (!com.tyust.course.manager.SyncSettings.enabled(context)) {
-            com.tyust.course.ui.system.GlassToaster.show("在线同步未开启，更新登录状态需要联网，请先到设置页打开「在线同步」")
-            return
-        }
         cookieUpdateFeedback = null
-        val user = UserManager.getInstance()
-        val expected = user.sessionState.token
-        com.tyust.course.utils.SessionRenewer.request(expected, manual = true) { result ->
-            when (result) {
-                is com.tyust.course.utils.SessionRecoveryResult.Recovered -> {
-                    if (user.sessionState.isCurrent(result.token)) {
-                        cookieUpdateFeedback = result.token to com.tyust.course.ui.system.SymbolResult.Success
-                        refreshAccountUiState()
-                        GlassToaster.show("登录状态已更新")
-                    }
-                }
-                is com.tyust.course.utils.SessionRecoveryResult.NeedsLogin -> {
-                    if (user.sessionState.isCurrent(expected)) {
-                        cookieUpdateFeedback = expected to com.tyust.course.ui.system.SymbolResult.Failure
-                        GlassToaster.show(
-                        when (result.reason) {
-                            com.tyust.course.utils.RecoveryFailure.Network -> "暂时无法连接，请稍后重试"
-                            com.tyust.course.utils.RecoveryFailure.Storage -> "保存失败，请重试"
-                            else -> "需要重新登录以更新登录状态"
-                        }
-                        )
-                    }
-                }
-                com.tyust.course.utils.SessionRecoveryResult.Superseded -> Unit
+        val expected = UserManager.getInstance().sessionState.token
+        com.tyust.course.utils.SessionRepair.repair(context) { outcome ->
+            if (UserManager.getInstance().sessionState.isCurrent(expected)) {
+                cookieUpdateFeedback = expected to
+                    if (outcome.ok) com.tyust.course.ui.system.SymbolResult.Success
+                    else com.tyust.course.ui.system.SymbolResult.Failure
+            }
+            if (outcome.ok) {
+                refreshAccountUiState()
+                GlassToaster.show("登录状态已更新")
+            } else {
+                GlassToaster.show(outcome.message ?: "更新失败，请稍后重试")
             }
         }
     }
@@ -362,8 +364,27 @@ fun SettingsRoute(
             } else {
                 com.tyust.course.ui.system.GlassToaster.show("在线同步已关闭，将使用本地数据，避免教务被顶号")
             }
-        }
+        },
+        feedbackUnread = feedbackUnread,
+        onFeedbackClick = {
+            feedbackUnread = 0
+            showFeedback = true
+        },
+        widgetCount = widgetCount,
+        onWidgetManage = { showWidgetSettings = true }
     )
+
+    if (showWidgetSettings) {
+        com.tyust.course.ui.system.GlassSubpage(onDismiss = { showWidgetSettings = false }) { close ->
+            com.tyust.course.ui.screen.WidgetSettingsScreen(onBack = close)
+        }
+    }
+
+    if (showFeedback) {
+        com.tyust.course.ui.system.GlassSubpage(onDismiss = { showFeedback = false }) { close ->
+            com.tyust.course.ui.screen.FeedbackScreen(onBack = close)
+        }
+    }
     val availableUpdate = updateState.updateInfo()
     if (updateState.showDialog() && availableUpdate != null) {
         UpdateDialog(

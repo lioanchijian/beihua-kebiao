@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.outlined.AssignmentInd
 import androidx.compose.material.icons.outlined.Assignment
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ContentPasteSearch
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
@@ -102,7 +104,11 @@ fun SettingsScreen(
     onlineSyncEnabled: Boolean = true,
     onOnlineSyncChange: (Boolean) -> Unit = {},
     analyticsEnabled: Boolean = true,
-    onAnalyticsChange: (Boolean) -> Unit = {}
+    onAnalyticsChange: (Boolean) -> Unit = {},
+    feedbackUnread: Int = 0,
+    onFeedbackClick: () -> Unit = {},
+    widgetCount: Int = 0,
+    onWidgetManage: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     // 折叠进度随滚动偏移连续变化（约 96px 行程），全程跟手
@@ -238,6 +244,17 @@ fun SettingsScreen(
                     subtitle = bottomNavSummary,
                     onClick = onBottomNavSelect
                 )
+                SettingsRow(
+                    icon = Icons.Outlined.Dashboard,
+                    iconTint = Color(0xFFFF9F0A),
+                    title = "桌面小组件",
+                    subtitle = if (widgetCount == 0) {
+                        "还没添加 · 点这里看怎么加"
+                    } else {
+                        "已添加 $widgetCount 个 · 可单独设置名称与账号"
+                    },
+                    onClick = onWidgetManage
+                )
                 InsetGroupedRow(
                     icon = Icons.Outlined.AutoAwesome,
                     iconTint = Color(0xFF5AC8FA),
@@ -258,6 +275,33 @@ fun SettingsScreen(
             }
 
             InsetGroupedSection(Modifier.moduleEntrance(3), header = "应用与支持") {
+                InsetGroupedRow(
+                    icon = Icons.Outlined.ChatBubbleOutline,
+                    iconTint = Color(0xFF0A84FF),
+                    title = "意见反馈",
+                    subtitle = "匿名，直接和柳岸说",
+                    onClick = onFeedbackClick,
+                    trailing = {
+                        if (feedbackUnread > 0) {
+                            Text(
+                                text = if (feedbackUnread > 99) "99+" else feedbackUnread.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onError,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(9.dp))
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                )
                 SettingsRow(
                     icon = Icons.Outlined.Home,
                     iconTint = Color(0xFF5E5CE6),

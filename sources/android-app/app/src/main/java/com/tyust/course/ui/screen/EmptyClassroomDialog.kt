@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +47,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.tyust.course.manager.UserManager
 import com.tyust.course.network.EmptyClassroom
 import com.tyust.course.network.EmptyClassroomApi
+import com.tyust.course.network.SessionExpiredException
+import com.tyust.course.ui.system.SessionExpiredHint
+import com.tyust.course.utils.SessionRepair
 import kotlinx.coroutines.CancellationException
 
 @Composable
@@ -56,12 +61,15 @@ fun EmptyClassroomDialog(
     onDismiss: () -> Unit
 ) {
     val school = remember { UserManager.getInstance().currentSchool }
+    val context = LocalContext.current
     var campusId by remember { mutableIntStateOf(2) }
     var selectedBuilding by remember { mutableStateOf("全部") }
     var selectedFloor by remember { mutableStateOf("全部") }
     var classrooms by remember { mutableStateOf<List<EmptyClassroom>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var expiredCode by remember { mutableStateOf(0) }
+    var repairing by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
     val dayText = listOf("一", "二", "三", "四", "五", "六", "日").getOrElse(day - 1) { day.toString() }
 
@@ -72,10 +80,14 @@ fun EmptyClassroomDialog(
         }
         loading = true
         error = ""
+        expiredCode = 0
         try {
             classrooms = EmptyClassroomApi.load(school, semester, week, day, period, campusId)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: SessionExpiredException) {
+            classrooms = emptyList()
+            expiredCode = e.statusCode
         } catch (e: Exception) {
             classrooms = emptyList()
             error = e.message ?: "查询失败，请稍后重试"
@@ -111,6 +123,7 @@ fun EmptyClassroomDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        Box {
         Surface(
             modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 680.dp).clip(RoundedCornerShape(28.dp)),
             color = MaterialTheme.colorScheme.surface,
@@ -169,6 +182,25 @@ fun EmptyClassroomDialog(
                             Text("正在查询空闲教室…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                    expiredCode != 0 -> Box(Modifier.fillMaxWidth().height(190.dp), contentAlignment = Alignment.Center) {
+                        SessionExpiredHint(
+                            title = "登录状态已失效（$expiredCode）",
+                            subtitle = error.ifBlank { "教务登录过期了，更新一下就能继续查" },
+                            repairing = repairing,
+                            onRepair = {
+                                repairing = true
+                                error = ""
+                                SessionRepair.repair(context) { outcome ->
+                                    repairing = false
+                                    if (outcome.ok) {
+                                        reload++
+                                    } else {
+                                        error = outcome.message ?: "更新失败，请稍后重试"
+                                    }
+                                }
+                            }
+                        )
+                    }
                     error.isNotBlank() -> Box(Modifier.fillMaxWidth().height(190.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(error, color = MaterialTheme.colorScheme.error)
@@ -197,6 +229,15 @@ fun EmptyClassroomDialog(
                     }
                 }
             }
+        }
+        val verification by com.tyust.course.utils.SessionRenewer.verification.collectAsState()
+        com.tyust.course.ui.system.SecondaryVerificationOverlay(
+            state = verification,
+            onRememberChange = { com.tyust.course.utils.SessionRenewer.setRememberDevice(it) },
+            onSendCode = { captcha -> com.tyust.course.utils.SessionRenewer.sendSecondarySms(captcha) },
+            onSubmit = { code -> com.tyust.course.utils.SessionRenewer.submitSecondarySms(code) },
+            onDismiss = { com.tyust.course.utils.SessionRenewer.cancelVerification() }
+        )
         }
     }
 }

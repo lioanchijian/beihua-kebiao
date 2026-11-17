@@ -625,6 +625,9 @@ fun MainScreen(fragmentActivity: FragmentActivity) {
                 modifier = Modifier.fillMaxSize()
             )
 
+            // 短信二次验证（「更新登录状态」触发）：全局挂载，任何页面发起都能就地验证
+            com.tyust.course.ui.system.SecondaryVerificationHost()
+
             // 底部导航设置弹窗放在主界面层级：调整顺序会让设置页换下标重建，
             // 弹窗留在页面里就会每点一下关一次。
             if (com.tyust.course.ui.screen.BottomNavSettingsDialogState.visible) {

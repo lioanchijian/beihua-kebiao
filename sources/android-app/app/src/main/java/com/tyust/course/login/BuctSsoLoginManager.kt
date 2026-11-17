@@ -46,7 +46,7 @@ internal object BuctSsoEndpoints {
  * 错误码(登录页 login-error-code): 1030027/1030031=用户名或密码错误,
  * 1030028=账号锁定, 1320007=验证码错误; 无错误码的 200 回显多为风控静默拒绝。
  */
-class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
+class BuctSsoLoginManager internal constructor() : PasswordLoginGateway, SecondaryVerificationGateway {
     private val stateLock = Any()
     private var activeAttempt: LoginAttempt? = null
 
@@ -213,7 +213,7 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
     }
 
     /** 获取二次验证发送短信前的图形验证码。 */
-    fun prepareSecondarySmsCaptcha(callback: PasswordLoginCallback) {
+    override fun prepareSecondarySmsCaptcha(callback: PasswordLoginCallback) {
         val attempt = synchronized(stateLock) { activeAttempt }
         if (attempt == null || attempt.completed.get() || !attempt.secondarySmsRequired) {
             callback.onError("二次验证会话已失效，请重新登录")
@@ -252,7 +252,7 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
     }
 
     /** 提交图形验证码并发送二次验证短信。 */
-    fun sendSecondarySmsCode(captchaCode: String, callback: PasswordLoginCallback) {
+    override fun sendSecondarySmsCode(captchaCode: String, callback: PasswordLoginCallback) {
         val attempt = synchronized(stateLock) { activeAttempt }
         if (attempt == null || attempt.completed.get() || !attempt.secondarySmsRequired) {
             callback.onError("二次验证会话已失效，请重新登录")
@@ -297,7 +297,11 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
     }
 
     /** 提交二次短信验证码；校验通过后提交 smsLogin 表单并跟随 ticket。 */
-    fun submitSecondarySmsCode(smsCode: String, callback: PasswordLoginCallback) {
+    override fun submitSecondarySmsCode(
+        smsCode: String,
+        rememberDevice: Boolean,
+        callback: PasswordLoginCallback
+    ) {
         val attempt = synchronized(stateLock) { activeAttempt }
         if (attempt == null || attempt.completed.get() || !attempt.secondarySmsRequired) {
             callback.onError("二次验证会话已失效，请重新登录")
@@ -311,7 +315,12 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
         val url = attempt.portalUrl.newBuilder()
             .encodedPath("/linkid/protected/api/aggregate/sms/verify")
             .build()
-        val json = JSONObject().put("phone", attempt.username).put("token", smsCode).put("delete", false).toString()
+        val json = JSONObject()
+            .put("phone", attempt.username)
+            .put("token", smsCode)
+            .put("delete", false)
+            .put("trustDevice", rememberDevice)
+            .toString()
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", USER_AGENT)
@@ -332,7 +341,7 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
                 val text = it.body?.string().orEmpty()
                 val root = runCatching { JSONObject(text) }.getOrNull()
                 if (it.isSuccessful && root?.optInt("code", -1) == 200) {
-                    submitSecondaryLoginForm(attempt, smsCode)
+                    submitSecondaryLoginForm(attempt, smsCode, rememberDevice)
                 } else {
                     callback.onSecondarySmsInvalid(secondarySmsError(text, "短信验证码错误或已过期"))
                 }
@@ -348,7 +357,7 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
         }.getOrNull().orEmpty().ifBlank { fallback }
     }
 
-    private fun submitSecondaryLoginForm(attempt: LoginAttempt, smsCode: String) {
+    private fun submitSecondaryLoginForm(attempt: LoginAttempt, smsCode: String, rememberDevice: Boolean) {
         val url = attempt.portalUrl.newBuilder()
             .encodedPath("/login")
             .setQueryParameter("service", attempt.serviceUrl.toString())
@@ -361,6 +370,8 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway {
             .add("geolocation", "")
             .add("execution", attempt.execution.orEmpty())
             .add("captcha_code", "")
+            // 学校认证页的「记住该设备」：勾选后服务端会信任本机，下次免短信
+            .add("trustDevice", if (rememberDevice) "true" else "false")
             .build()
         executeNoRedirect(
             attempt,

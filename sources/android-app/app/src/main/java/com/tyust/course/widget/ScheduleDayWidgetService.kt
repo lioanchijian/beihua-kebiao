@@ -33,6 +33,13 @@ class ScheduleDayRemoteViewsFactory(
     intent: Intent
 ) : RemoteViewsService.RemoteViewsFactory {
 
+    /** 当前要渲染的实例 id：读取该实例配置的账号/标题用。 */
+    private val appWidgetId: Int = intent.getIntExtra(
+        android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+        android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+    )
+
+
     // 开学日期：2026-09-01（与周次小组件一致）
     private val semesterStartDate = 1788192000000L
 
@@ -66,7 +73,9 @@ class ScheduleDayRemoteViewsFactory(
     override fun onDataSetChanged() {
         try {
             UserManager.getInstance().init(context)
-            val account = UserManager.getInstance().currentAccountStorageKey
+            // 实例级账号优先：小组件配置页里选过账号就用它，否则跟随当前账号
+            val instanceAccount = WidgetConfigStore.accountKey(context, appWidgetId)
+            val account = instanceAccount ?: UserManager.getInstance().currentAccountStorageKey
             val school = UserManager.getInstance().currentSchool?.id ?: "buct"
 
             val prefs = context.getSharedPreferences("schedule_cache", Context.MODE_PRIVATE)

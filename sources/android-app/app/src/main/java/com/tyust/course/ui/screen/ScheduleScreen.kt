@@ -374,7 +374,10 @@ fun ScheduleScreen(
     onDaySelect: (Int) -> Unit = {},
     onTodayClick: () -> Unit = {},
     /** 考试安排（成绩页共享缓存读入），日视图/周视图展示当天/本周考试 */
-    exams: List<ExamItemUi> = emptyList()
+    exams: List<ExamItemUi> = emptyList(),
+    /** 顶栏账号芯片文案（当前账号显示名）；空串则不显示 */
+    accountLabel: String = "",
+    onAccountClick: () -> Unit = {}
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val coroutineScope = rememberCoroutineScope()
@@ -523,6 +526,8 @@ fun ScheduleScreen(
                     },
                     onSettingsClick = onSettingsClick,
                     onExportClick = onExportClick,
+                    accountLabel = accountLabel,
+                    onAccountClick = onAccountClick,
                     semesterIndex = semesterIndex,
                     onSelectSemester = { index ->
                         onSelectSemester(index)
@@ -662,6 +667,8 @@ fun WeekHeaderCompact(
     onExportClick: () -> Unit = {},
     semesterIndex: Int = 0,
     onSelectSemester: (Int) -> Unit = {},
+    accountLabel: String = "",
+    onAccountClick: () -> Unit = {},
     /** 0=未滚动（大标题直接浮在课表上）、1=已上划（收拢成一条悬浮玻璃）。 */
     collapseFraction: Float = 0f,
     /** 「壁纸 + 课表内容」的合成采样源。为空则退回无玻璃顶栏。 */
@@ -828,6 +835,14 @@ fun WeekHeaderCompact(
                         ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (accountLabel.isNotBlank()) {
+                            AccountChip(
+                                label = accountLabel,
+                                onClick = onAccountClick,
+                                collapse = collapse,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                        }
                         TodayChip(
                             label = if (dayView) "今天" else "本周",
                             onClick = onTodayClick,

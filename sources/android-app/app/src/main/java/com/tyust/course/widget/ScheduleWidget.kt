@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import com.tyust.course.R
-import com.tyust.course.manager.UserManager
 
 /**
  * 桌面课表小组件
@@ -61,6 +60,13 @@ class ScheduleWidget : AppWidgetProvider() {
 
             // 通知 ListView 的 Service 刷新数据
             appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list)
+        }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        for (id in appWidgetIds) {
+            WidgetConfigStore.clear(context, id)
         }
     }
 
@@ -134,10 +140,11 @@ class ScheduleWidget : AppWidgetProvider() {
                 else -> systemDark // system 模式
             }
 
-            // 设置标题为用户名 + 课表
-            UserManager.getInstance().init(context)
-            val userName = UserManager.getInstance().studentName ?: "课表"
-            views.setTextViewText(R.id.widget_title, "${userName}的课表")
+            // 设置标题：实例自定义 → 全局默认 → 「我的课表」
+            views.setTextViewText(
+                R.id.widget_title,
+                WidgetConfigStore.resolveTitle(context, appWidgetId, isDay = false)
+            )
 
             // 根据模式设置文字颜色和背景色
             val textColor = if (isDarkMode) android.graphics.Color.WHITE else android.graphics.Color.BLACK
@@ -204,10 +211,13 @@ class ScheduleWidget : AppWidgetProvider() {
             serviceIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             views.setRemoteAdapter(R.id.widget_list, serviceIntent)
 
-            // 点击标题跳转到 app
-            val titleClickIntent = Intent(context, com.tyust.course.MainActivity::class.java)
+            // 点击标题进「小组件配置」，点击列表项跳转到 app
+            val configIntent = Intent(context, com.tyust.course.ui.widget.WidgetConfigActivity::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(com.tyust.course.ui.widget.WidgetConfigActivity.EXTRA_IS_DAY, false)
+            }
             val titleClickPendingIntent = PendingIntent.getActivity(
-                context, 0, titleClickIntent,
+                context, appWidgetId + 2000, configIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_title, titleClickPendingIntent)

@@ -45,7 +45,7 @@ class ScheduleDayWidget : AppWidgetProvider() {
         }
 
         /** 构建完整静态卡片视图（主题 + 日期 + 卡组） */
-        private fun buildViews(context: Context): RemoteViews {
+        private fun buildViews(context: Context, appWidgetId: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_day)
 
             // 主题跟随：与周次小组件同一套规则
@@ -60,8 +60,10 @@ class ScheduleDayWidget : AppWidgetProvider() {
             }
 
             UserManager.getInstance().init(context)
-            val userName = UserManager.getInstance().studentName ?: "课表"
-            views.setTextViewText(R.id.widget_title, "${userName}的今日课表")
+            views.setTextViewText(
+                R.id.widget_title,
+                WidgetConfigStore.resolveTitle(context, appWidgetId, isDay = true)
+            )
 
             val textColor = if (isDarkMode) android.graphics.Color.WHITE else android.graphics.Color.BLACK
             val bgColor = if (isDarkMode) android.graphics.Color.argb(180, 30, 30, 46) else android.graphics.Color.argb(180, 255, 255, 255)
@@ -100,7 +102,11 @@ class ScheduleDayWidget : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_back_today, pending(ACTION_DAY_TODAY, 13))
 
             // 静态卡片：按当天课程/考试数量切换卡组（weight 均分占满）
-            val factory = ScheduleDayRemoteViewsFactory(context, Intent())
+            // 把实例 id 传进去：工厂要按这个 id 读实例配置的账号
+            val factory = ScheduleDayRemoteViewsFactory(
+                context,
+                Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            )
             factory.onDataSetChanged()
             val cards = factory.buildDayCards()
             val n = cards.size
@@ -140,13 +146,21 @@ class ScheduleDayWidget : AppWidgetProvider() {
                 }
             }
 
-            // 点击卡片/标题跳转到 app
+            // 点击卡片/标题跳转到 app；标题单独进「小组件配置」
             val clickIntent = Intent(context, com.tyust.course.MainActivity::class.java)
             val clickPendingIntent = PendingIntent.getActivity(
                 context, 0, clickIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_title, clickPendingIntent)
+            val configIntent = Intent(context, com.tyust.course.ui.widget.WidgetConfigActivity::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(com.tyust.course.ui.widget.WidgetConfigActivity.EXTRA_IS_DAY, true)
+            }
+            val configPendingIntent = PendingIntent.getActivity(
+                context, appWidgetId + 2000, configIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_title, configPendingIntent)
             for (g in 1..6) {
                 for (k in 1..g) {
                     views.setOnClickPendingIntent(rid(context, "dc${g}_card${k}_root"), clickPendingIntent)
@@ -162,7 +176,7 @@ class ScheduleDayWidget : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int
         ) {
-            val views = buildViews(context)
+            val views = buildViews(context, appWidgetId)
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }
@@ -194,8 +208,8 @@ class ScheduleDayWidget : AppWidgetProvider() {
                     android.content.ComponentName(context, ScheduleDayWidget::class.java)
                 )
                 // 增量刷新：静态视图整体 partial 更新（日期 + 卡组 + 卡片内容）
-                val views = buildViews(context)
                 for (id in ids) {
+                    val views = buildViews(context, id)
                     appWidgetManager.partiallyUpdateAppWidget(intArrayOf(id), views)
                 }
             }
@@ -206,6 +220,13 @@ class ScheduleDayWidget : AppWidgetProvider() {
                 )
                 onUpdate(context, appWidgetManager, ids)
             }
+        }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        for (id in appWidgetIds) {
+            WidgetConfigStore.clear(context, id)
         }
     }
 }

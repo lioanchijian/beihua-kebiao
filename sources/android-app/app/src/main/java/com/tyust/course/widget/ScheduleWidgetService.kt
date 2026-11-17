@@ -27,6 +27,13 @@ class ScheduleRemoteViewsFactory(
     intent: Intent
 ) : RemoteViewsService.RemoteViewsFactory {
 
+    /** 当前要渲染的实例 id：读取该实例配置的账号/标题用。 */
+    private val appWidgetId: Int = intent.getIntExtra(
+        android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+        android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+    )
+
+
     private val periodTimes = listOf(
         "08:00", "08:50", "09:45", "10:40", "11:30", "13:30",
         "14:20", "15:15", "16:05", "18:00", "18:50", "19:40"
@@ -57,7 +64,9 @@ class ScheduleRemoteViewsFactory(
     override fun onDataSetChanged() {
         try {
             UserManager.getInstance().init(context)
-            val account = UserManager.getInstance().currentAccountStorageKey
+            // 实例级账号优先：小组件配置页里选过账号就用它，否则跟随当前账号
+            val instanceAccount = WidgetConfigStore.accountKey(context, appWidgetId)
+            val account = instanceAccount ?: UserManager.getInstance().currentAccountStorageKey
             val school = UserManager.getInstance().currentSchool?.id ?: "buct"
 
             val prefs = context.getSharedPreferences("schedule_cache", Context.MODE_PRIVATE)

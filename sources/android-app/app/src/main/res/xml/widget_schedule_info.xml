@@ -8,4 +8,5 @@
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_schedule"
     android:description="@string/widget_description"
-    android:previewImage="@mipmap/ic_launcher" />
+    android:previewImage="@mipmap/ic_launcher"
+    android:configure="com.buct.course/.ui.widget.WidgetConfigActivity" />

@@ -102,6 +102,8 @@ fun LoginScreen(
     secondarySmsSubmitting: Boolean = false,
     onSecondarySmsSend: ((String) -> Unit)? = null,
     onSecondarySmsSubmit: ((String) -> Unit)? = null,
+    secondarySmsRememberDevice: Boolean = true,
+    onSecondarySmsRememberChange: ((Boolean) -> Unit)? = null,
     onSecondarySmsCancel: (() -> Unit)? = null,
     // 通行密钥登录（学号 + 原生系统通行密钥认证）
     onPasskeyLogin: ((username: String) -> Unit)? = null,
@@ -866,13 +868,15 @@ fun LoginScreen(
     }
 
     if (secondarySmsRequired) {
-        SecondarySmsVerificationDialog(
+        com.tyust.course.ui.system.SecondaryVerificationDialog(
             phoneMasked = secondarySmsPhone,
             sentUntil = secondarySmsSentUntil,
             captchaBytes = secondarySmsCaptchaBytes,
             sending = secondarySmsSending,
             submitting = secondarySmsSubmitting,
             errorMessage = errorMessage,
+            rememberDevice = secondarySmsRememberDevice,
+            onRememberChange = { onSecondarySmsRememberChange?.invoke(it) },
             onSendCode = { captcha -> onSecondarySmsSend?.invoke(captcha) },
             onSubmit = { code -> onSecondarySmsSubmit?.invoke(code) },
             onDismiss = { onSecondarySmsCancel?.invoke() }
@@ -897,136 +901,6 @@ fun LoginScreen(
         )
     }
     } // 关闭 CompositionLocalProvider
-}
-
-@Composable
-fun SecondarySmsVerificationDialog(
-    phoneMasked: String,
-    sentUntil: Long,
-    captchaBytes: ByteArray?,
-    sending: Boolean,
-    submitting: Boolean,
-    errorMessage: String?,
-    onSendCode: (String) -> Unit,
-    onSubmit: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var code by remember { mutableStateOf("") }
-    var captchaInput by remember { mutableStateOf("") }
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(sentUntil) {
-        while (sentUntil > System.currentTimeMillis()) {
-            kotlinx.coroutines.delay(1000L)
-            now = System.currentTimeMillis()
-        }
-        now = System.currentTimeMillis()
-    }
-    LaunchedEffect(captchaBytes) { captchaInput = "" }
-    val remaining = if (sentUntil > now) ((sentUntil - now + 999L) / 1000L).toInt() else 0
-    val sendText = when {
-        sending -> "发送中"
-        remaining > 0 -> "${remaining}s 后重发"
-        captchaBytes != null -> "发送验证码"
-        else -> "获取验证码"
-    }
-    val sendEnabled = !sending && remaining == 0 &&
-        (captchaBytes == null || captchaInput.isNotBlank())
-    val hint = when {
-        remaining > 0 -> "验证码已发送至 ${phoneMasked.ifBlank { "绑定的手机号" }}，请输入 6 位验证码"
-        captchaBytes != null -> "请输入图形验证码，再点「发送验证码」"
-        else -> "为保护账号安全，本次登录需要短信二次验证"
-    }
-    SystemDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "二次身份验证",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        confirmButton = {
-            SystemPrimaryButton(
-                text = if (submitting) "验证中..." else "验证并登录",
-                onClick = { if (code.isNotBlank()) onSubmit(code.trim()) },
-                enabled = code.isNotBlank() && !submitting,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        dismissButton = {
-            SystemSecondaryButton(
-                text = "取消",
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = hint,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            captchaBytes?.let { bytes ->
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = "图形验证码，点击换一张",
-                        modifier = Modifier
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onSendCode("") }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    GlassTextField(
-                        value = captchaInput,
-                        onValueChange = { captchaInput = it.take(6) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = "请输入图形验证码",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                        minHeight = 50.dp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            }
-            GlassTextField(
-                value = code,
-                onValueChange = { code = it.filter { ch -> ch.isDigit() }.take(6) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = "请输入短信验证码",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                minHeight = 50.dp,
-                trailing = {
-                    Text(
-                        text = sendText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (sendEnabled) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(enabled = sendEnabled) { onSendCode(captchaInput.trim()) }
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
-                }
-            )
-            if (!errorMessage.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = errorMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
 }
 
 @Composable
