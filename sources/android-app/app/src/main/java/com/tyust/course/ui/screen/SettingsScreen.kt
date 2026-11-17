@@ -36,6 +36,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.ViewWeek
@@ -108,7 +109,8 @@ fun SettingsScreen(
     feedbackUnread: Int = 0,
     onFeedbackClick: () -> Unit = {},
     widgetCount: Int = 0,
-    onWidgetManage: () -> Unit = {}
+    onWidgetManage: () -> Unit = {},
+    onFriendsClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     // 折叠进度随滚动偏移连续变化（约 96px 行程），全程跟手
@@ -275,6 +277,13 @@ fun SettingsScreen(
             }
 
             InsetGroupedSection(Modifier.moduleEntrance(3), header = "应用与支持") {
+                InsetGroupedRow(
+                    icon = Icons.Outlined.People,
+                    iconTint = Color(0xFF34C759),
+                    title = "好友",
+                    subtitle = "用短号互加，互发消息和课表",
+                    onClick = onFriendsClick
+                )
                 InsetGroupedRow(
                     icon = Icons.Outlined.ChatBubbleOutline,
                     iconTint = Color(0xFF0A84FF),

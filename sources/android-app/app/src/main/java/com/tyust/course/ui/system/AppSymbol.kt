@@ -7,6 +7,7 @@ import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ enum class AppSymbolSpec(val outline: ImageVector) {
     Courses(Icons.AutoMirrored.Outlined.FormatListBulleted),
     Schedule(Icons.Outlined.DateRange),
     Grab(Icons.Outlined.MyLocation),
+    Friends(Icons.Outlined.People),
     Grades(Icons.Outlined.BarChart),
     Settings(Icons.Outlined.Settings)
 }
@@ -38,6 +40,7 @@ fun AppSymbol(spec: AppSymbolSpec, progress: Float, tint: Color, modifier: Modif
             AppSymbolSpec.Courses -> AnimatedIconSpec.Courses
             AppSymbolSpec.Schedule -> AnimatedIconSpec.Calendar
             AppSymbolSpec.Grab -> AnimatedIconSpec.Target
+            AppSymbolSpec.Friends -> AnimatedIconSpec.Person
             AppSymbolSpec.Grades -> AnimatedIconSpec.Grades
             AppSymbolSpec.Settings -> AnimatedIconSpec.Settings
         }, modifier = modifier, tint = tint,

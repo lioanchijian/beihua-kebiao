@@ -141,6 +141,7 @@ fun SettingsRoute(
     var showFeedback by remember { mutableStateOf(false) }
     var feedbackUnread by remember { mutableIntStateOf(0) }
     var showWidgetSettings by remember { mutableStateOf(false) }
+    var showFriends by remember { mutableStateOf(false) }
     var widgetCount by remember {
         mutableIntStateOf(com.tyust.course.ui.screen.listWidgetInstances(context).size)
     }
@@ -371,8 +372,15 @@ fun SettingsRoute(
             showFeedback = true
         },
         widgetCount = widgetCount,
-        onWidgetManage = { showWidgetSettings = true }
+        onWidgetManage = { showWidgetSettings = true },
+        onFriendsClick = { showFriends = true }
     )
+
+    if (showFriends) {
+        com.tyust.course.ui.system.GlassSubpage(onDismiss = { showFriends = false }) { close ->
+            com.tyust.course.ui.route.FriendsRoute(onBack = close)
+        }
+    }
 
     if (showWidgetSettings) {
         com.tyust.course.ui.system.GlassSubpage(onDismiss = { showWidgetSettings = false }) { close ->

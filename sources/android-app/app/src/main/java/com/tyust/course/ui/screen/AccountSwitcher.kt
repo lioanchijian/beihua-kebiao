@@ -2,6 +2,7 @@ package com.tyust.course.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,18 +22,29 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tyust.course.manager.UserManager
+import com.tyust.course.ui.system.glass.adaptiveGlassChip
+import com.tyust.course.ui.system.glass.applyChipContentDeformation
+import com.tyust.course.ui.system.glass.rememberInteractiveOptics
 import com.tyust.course.ui.system.SystemDialog
 import com.tyust.course.ui.system.SystemPrimaryButton
 import com.tyust.course.ui.system.SystemSecondaryButton
 
-/** 顶栏账号芯片：色块 + 名字，点开切换面板。 */
+/**
+ * 顶栏账号芯片：玻璃胶囊 + 6dp 色点 + 名字 + 下拉箭头。
+ *
+ * 与右侧「今天/本周」「日/周」同一套材质与尺寸体系（展开 34dp、折叠 30dp），
+ * 不再用扁平 surfaceVariant 药丸，避免和周边的玻璃控件风格割裂。
+ */
 @Composable
 fun AccountChip(
     label: String,
@@ -41,30 +53,39 @@ fun AccountChip(
     collapse: Float = 0f
 ) {
     val tint = accountColor(label)
+    val backdrop = com.tyust.course.ui.system.LocalControlBackdrop.current
+    val optics = rememberInteractiveOptics()
+    val alpha = (1f - collapse * 1.4f).coerceIn(0.25f, 1f)
+    val chipHeight = (34f - 4f * collapse.coerceIn(0f, 1f)).dp
+
     Row(
         modifier = modifier
-            .height(30.dp)
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f - 0.2f * collapse),
-                RoundedCornerShape(15.dp)
+            .height(chipHeight)
+            .adaptiveGlassChip(backdrop, CircleShape, optics, enabled = true, interactive = true)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
             )
-            .clickable(onClick = onClick)
-            .padding(start = 8.dp, end = 6.dp),
+            .graphicsLayer {
+                this.alpha = alpha
+                applyChipContentDeformation(
+                    optics,
+                    2.dp.toPx(),
+                    0.02f,
+                    0.02f,
+                    com.tyust.course.ui.system.GlassRecipe.ChipContentDeformDamping
+                )
+            }
+            .padding(start = 9.dp, end = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Box(Modifier.size(18.dp).background(tint, CircleShape), contentAlignment = Alignment.Center) {
-            Text(
-                text = label.take(1).ifBlank { "同" },
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Box(Modifier.size(6.dp).background(tint, CircleShape))
         Text(
             text = label.take(6).ifBlank { "切换账号" },
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -73,19 +94,22 @@ fun AccountChip(
             imageVector = Icons.Outlined.KeyboardArrowDown,
             contentDescription = "切换账号",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp)
+            modifier = Modifier.size(12.dp)
         )
     }
 }
 
-/** 切换账号面板：列出所有已保存账号，点一行即切换。 */
+/** 切换账号面板：本机账号 + 朋友传来的课表，点一行即切换。 */
 @Composable
 fun AccountSwitcherDialog(
     accounts: List<UserManager.AccountRecord>,
     currentKey: String,
     onSelect: (String) -> Unit,
     onManage: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    friendSchedules: List<com.tyust.course.social.FriendScheduleStore.Entry> = emptyList(),
+    currentFriendId: String? = null,
+    onSelectFriend: (String) -> Unit = {}
 ) {
     SystemDialog(
         onDismissRequest = onDismiss,
@@ -121,7 +145,7 @@ fun AccountSwitcherDialog(
                 )
             } else {
                 accounts.forEach { record ->
-                    val current = record.key == currentKey
+                    val current = record.key == currentKey && currentFriendId == null
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -174,6 +198,74 @@ fun AccountSwitcherDialog(
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = "切换后课表、成绩、考试会自动换成该账号的数据。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // 朋友传来的课表：保存到本机后自动出现在这里，选中即只读查看
+            if (friendSchedules.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "朋友的课表",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                friendSchedules.forEach { entry ->
+                    val current = currentFriendId == entry.id
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 420.dp)
+                            .background(
+                                if (current) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .clickable(enabled = !current) { onSelectFriend(entry.id) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            Modifier.size(30.dp).background(accountColor(entry.label), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = entry.label.take(1),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "${entry.label}的课表",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = entry.subtitle.ifBlank { "只读 · 朋友传来" },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        if (current) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "正在查看",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "朋友的课表只读，不会覆盖你自己的数据。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

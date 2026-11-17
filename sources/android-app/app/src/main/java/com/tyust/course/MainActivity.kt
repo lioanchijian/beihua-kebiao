@@ -227,17 +227,20 @@ sealed class BottomNavItem(
     object Courses : BottomNavItem(StartupPage.Courses, AppSymbolSpec.Courses)
     object Schedule : BottomNavItem(StartupPage.Schedule, AppSymbolSpec.Schedule)
     object Grab : BottomNavItem(StartupPage.Grab, AppSymbolSpec.Grab)
+    object Friends : BottomNavItem(StartupPage.Friends, AppSymbolSpec.Friends)
     object Grades : BottomNavItem(StartupPage.Grades, AppSymbolSpec.Grades)
     object Settings : BottomNavItem(StartupPage.Settings, AppSymbolSpec.Settings)
 
     companion object {
-        // 导航顺序：课表放正中间（主要使用课表功能）
-        val entries: List<BottomNavItem> get() = listOf(Courses, Grab, Schedule, Grades, Settings)
+        // 导航顺序：课表放正中间（主要使用课表功能）；抢课已并入课程页的二级目录
+        val entries: List<BottomNavItem> get() = listOf(Courses, Friends, Schedule, Grades, Settings)
 
         fun of(page: StartupPage): BottomNavItem = when (page) {
             StartupPage.Courses -> Courses
             StartupPage.Schedule -> Schedule
-            StartupPage.Grab -> Grab
+            // 抢课合并进课程页，老配置指向抢课时落到课程
+            StartupPage.Grab -> Courses
+            StartupPage.Friends -> Friends
             StartupPage.Grades -> Grades
             StartupPage.Settings -> Settings
         }
@@ -574,8 +577,9 @@ fun MainScreen(fragmentActivity: FragmentActivity) {
                               if (navItem != null) {
                                   savedPages.SaveableStateProvider(navItem.route) {
                                       when (navItem.page) {
-                                          StartupPage.Courses -> com.tyust.course.ui.route.CourseListRoute()
-                                          StartupPage.Grab -> com.tyust.course.ui.route.GrabProRoute()
+                                          StartupPage.Courses -> com.tyust.course.ui.route.CourseSectionRoute()
+                                          StartupPage.Grab -> com.tyust.course.ui.route.CourseSectionRoute()
+                                          StartupPage.Friends -> com.tyust.course.ui.route.FriendsRoute()
                                           StartupPage.Schedule -> com.tyust.course.ui.route.ScheduleRoute()
                                           StartupPage.Grades -> com.tyust.course.ui.route.GradesRoute()
                                           StartupPage.Settings -> com.tyust.course.ui.route.SettingsRoute()
@@ -616,7 +620,7 @@ fun MainScreen(fragmentActivity: FragmentActivity) {
             GlassToastHost(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = navBarContentInset + if (items.getOrNull(safeSelectedTab)?.page == StartupPage.Grab)
+                    .padding(bottom = navBarContentInset + if (items.getOrNull(safeSelectedTab)?.page == StartupPage.Courses)
                         com.tyust.course.ui.system.TaskControlsReservedHeight + 12.dp else 12.dp)
             )
 
