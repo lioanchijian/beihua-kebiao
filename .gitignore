@@ -4,3 +4,4 @@ backup/
 app/build/
 .gradle/
 private/
+memory/

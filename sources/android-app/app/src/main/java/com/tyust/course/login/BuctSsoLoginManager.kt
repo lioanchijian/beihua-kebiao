@@ -638,7 +638,7 @@ class BuctSsoLoginManager internal constructor() : PasswordLoginGateway, Seconda
      * 「二次身份验证」页面，而是照样返回 200 登录页，并在隐藏区下发：
      *   <p id="sso-second">true</p>
      *   <p id="current-login-type">smsLogin</p>
-     *   <p id="phone-number">18137551062</p>
+     *   <p id="phone-number">138xxxxxxxx</p>
      *   <p id="login-page-flowkey">…</p>   ← 已刷新，二次提交必须用新的
      * 前端读到 sso-second 后只渲染短信验证码卡片；该卡片的表单 id 仍是
      * smsNoPhoneloginForm，但它由 JS 动态插入，服务端 HTML 里搜不到，
