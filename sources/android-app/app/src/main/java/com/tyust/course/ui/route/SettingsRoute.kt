@@ -490,8 +490,9 @@ fun SettingsRoute(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "本应用是基于 zhengfang-apk 源码进行二次开发，专门为北京化工大学（北化）定制的课表应用。\n" +
-                            "适配北化教务系统，支持课表查询、成绩查询等功能。",
+                    text = "这是一个 Fork（衍生版），不是原创项目。\n" +
+                            "本应用 fork 自开源项目 zhengfang-apk，针对北京化工大学（北化）做了教务适配与功能扩展，" +
+                            "按 GPL-3.0 继续开源，源码全部公开。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 20.sp
@@ -506,8 +507,11 @@ fun SettingsRoute(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "感谢原作者 znjhahaha 的开源项目 zhengfang-apk，本应用基于该项目二次开发：\n" +
-                            "• 原项目：https://github.com/znjhahaha/zhengfang-apk\n\n" +
+                    text = "感谢原作者 znjhahaha 的开源项目 zhengfang-apk：\n" +
+                            "• 上游项目：https://github.com/znjhahaha/zhengfang-apk\n" +
+                            "• 本仓库（Fork）：https://github.com/lioanchijian/beihua-kebiao\n" +
+                            "• 许可证：GPL-3.0\n" +
+                            "• 官网：https://buctkb.cn\n\n" +
                             "本应用基于多项优秀的开源技术构建：\n" +
                             "• Jetpack Compose & Kotlin\n" +
                             "• OkHttp3 & Gson\n" +
@@ -522,7 +526,9 @@ fun SettingsRoute(
                 com.tyust.course.ui.system.SystemDivider()
 
                 Text(
-                    text = "本软件为开源免费项目，仅供个人学习与技术交流使用，严禁用于任何商业目的与倒卖。",
+                    text = "本软件为开源免费项目（GPL-3.0），仅供个人学习与技术交流使用，禁止任何商业售卖。" +
+                            "上游代码版权归原作者所有，本项目新增与修改部分的版权归本项目作者所有。" +
+                            "支持作者：https://ifdian.net/a/buctkb（自愿赞助，不解锁任何功能）。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     lineHeight = 16.sp
