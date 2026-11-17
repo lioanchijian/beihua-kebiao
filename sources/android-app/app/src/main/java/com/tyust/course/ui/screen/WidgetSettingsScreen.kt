@@ -53,6 +53,19 @@ internal data class WidgetInstance(
     val isDay: Boolean
 )
 
+/**
+ * 列表一行要显示的内容。
+ *
+ * 标题/副标题在「刷新时」就解析成字符串存进状态，不能放在组合里现算：
+ * 从配置页返回时实例列表本身没变（同一个 appWidgetId），状态相等不会触发重组，
+ * 现算的文字就会一直是旧值，必须退出设置再进才更新。
+ */
+private data class WidgetRowData(
+    val instance: WidgetInstance,
+    val title: String,
+    val subtitle: String
+)
+
 /** 枚举本 App 当前所有桌面小组件实例（课表 + 今日课表两种 provider）。 */
 internal fun listWidgetInstances(context: Context): List<WidgetInstance> {
     val manager = runCatching { AppWidgetManager.getInstance(context) }.getOrNull() ?: return emptyList()
@@ -78,17 +91,19 @@ internal fun listWidgetInstances(context: Context): List<WidgetInstance> {
 fun WidgetSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var instances by remember { mutableStateOf(listWidgetInstances(context)) }
-    var accounts by remember { mutableStateOf(loadAccounts(context)) }
+    var rows by remember { mutableStateOf(emptyList<WidgetRowData>()) }
 
-    // 每次回到本页重新查一次：用户可能在桌面添加/删除了小组件，或改了账号
+    // 关键：标题/副标题在这里就解析好。每次回到本页（含从配置页返回）都重新算一遍，
+    // 即使实例 id 没变，文字变了也会触发重组，不用退出设置再进。
     DisposableEffect(lifecycleOwner) {
+        fun reload() {
+            val accounts = loadAccounts(context)
+            rows = loadRows(context, accounts)
+            WidgetConfigStore.prune(context, rows.map { it.instance.appWidgetId }.toSet())
+        }
+        reload()
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                instances = listWidgetInstances(context)
-                accounts = loadAccounts(context)
-                WidgetConfigStore.prune(context, instances.map { it.appWidgetId }.toSet())
-            }
+            if (event == Lifecycle.Event.ON_RESUME) reload()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -138,19 +153,18 @@ fun WidgetSettingsScreen(onBack: () -> Unit) {
                     .padding(top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                CountCard(count = instances.size)
+                CountCard(count = rows.size)
 
-                if (instances.isEmpty()) {
+                if (rows.isEmpty()) {
                     EmptyHint()
                 } else {
-                    instances.forEachIndexed { index, instance ->
+                    rows.forEach { row ->
                         WidgetRow(
-                            index = index + 1,
-                            instance = instance,
-                            title = WidgetConfigStore.resolveTitle(context, instance.appWidgetId, instance.isDay),
-                            accountLabel = accountLabel(context, instance, accounts),
+                            title = row.title,
+                            subtitle = row.subtitle,
+                            isDay = row.instance.isDay,
                             onClick = {
-                                WidgetConfigActivity.start(context, instance.appWidgetId, instance.isDay)
+                                WidgetConfigActivity.start(context, row.instance.appWidgetId, row.instance.isDay)
                             }
                         )
                     }
@@ -175,7 +189,21 @@ private fun loadAccounts(context: Context): List<AccountOption> = runCatching {
     }
 }.getOrNull().orEmpty()
 
-private fun accountLabel(
+/** 组装列表数据：每个实例的标题与来源说明都在这里定稿。 */
+private fun loadRows(context: Context, accounts: List<AccountOption>): List<WidgetRowData> =
+    listWidgetInstances(context).mapIndexed { index, instance ->
+        val type = if (instance.isDay) "今日课表" else "课表"
+        WidgetRowData(
+            instance = instance,
+            title = runCatching {
+                WidgetConfigStore.resolveTitle(context, instance.appWidgetId, instance.isDay)
+            }.getOrDefault(""),
+            subtitle = "$type · 第 ${index + 1} 个 · ${sourceLabel(context, instance, accounts)}"
+        )
+    }
+
+/** 第三段说明：配置页里选了朋友课表就显示朋友，否则显示跟随/指定的账号。 */
+private fun sourceLabel(
     context: Context,
     instance: WidgetInstance,
     accounts: List<AccountOption>
@@ -246,10 +274,9 @@ private fun EmptyHint() {
 
 @Composable
 private fun WidgetRow(
-    index: Int,
-    instance: WidgetInstance,
     title: String,
-    accountLabel: String,
+    subtitle: String,
+    isDay: Boolean,
     onClick: () -> Unit
 ) {
     Row(
@@ -273,7 +300,7 @@ private fun WidgetRow(
                 .padding(8.dp)
         ) {
             Icon(
-                imageVector = if (instance.isDay) Icons.Outlined.CalendarToday else Icons.Outlined.ViewWeek,
+                imageVector = if (isDay) Icons.Outlined.CalendarToday else Icons.Outlined.ViewWeek,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -287,7 +314,7 @@ private fun WidgetRow(
                 maxLines = 1
             )
             Text(
-                text = "${if (instance.isDay) "今日课表" else "课表"} · 第 $index 个 · $accountLabel",
+                text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
