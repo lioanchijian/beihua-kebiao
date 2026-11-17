@@ -36,8 +36,7 @@
 - `website/`：官网静态源码，可直接部署到 Nginx
 - `server/usage-stats/`：匿名使用统计服务（Python + SQLite）
 - `server/usage-stats/private/`：统计 token、部署脚本等私有文件，不要打包外发
-- `release/current/`：当前发布 APK
-- `release/archive/`：历史 APK
+- `release/`：每次发版的正式安装包归档（文件名带版本号；`website/download/` 是官网下载通道用的 latest 副本）
 - `packages/`：可直接发给同学的项目压缩包和网站部署包
 - `assets/source-screenshots/`：官网截图的原图
 - `docs/`：项目文档、更新日志、旧交接文档
@@ -77,8 +76,8 @@ app\build\outputs\apk\release\app-release.apk
 
 ## 当前版本
 
-- App：`1.0.9.13 (103)`
-- 网站：`1.0.9.13`
+- App：`1.0.9.14 (104)`
+- 网站：`1.0.9.14`
 - 统计接口：`https://buctkb.cn/api/stats/ping`
 
 ## 开源协议
