@@ -5,12 +5,30 @@
 - 官网：https://buctkb.cn
 - 仓库：https://github.com/lioanchijian/beihua-kebiao
 - 许可证：[GPL-3.0](LICENSE)
+- 爱发电：https://ifdian.net/a/buctkb
 
 > **关于来源**：本项目是基于 [znjhahaha/zhengfang-apk](https://github.com/znjhahaha/zhengfang-apk)（教务助手，GPL-3.0）的
 > **修改版**，不是原创项目。上游版权归原作者所有，我们做了哪些改动、如何遵守 GPL-3.0，
 > 都写在 [CREDITS.md](CREDITS.md) 里，二次分发前请务必读一遍。
 
 这个仓库是北化课表项目的唯一工作目录，App 源码、网站源码、统计服务、发布包和调试资料都集中在这里。
+
+## 支持这个项目
+
+北化课表是免费开源的，没有广告、没有付费功能、也不卖任何东西。
+
+如果它确实帮你少迟到过几次，可以到爱发电请我喝一杯：
+**https://ifdian.net/a/buctkb**
+
+> 本项目已入驻爱发电（创作者主页：https://ifdian.net/a/buctkb）。
+> 赞助完全是自愿的，不解锁任何功能，也不影响你正常使用。
+
+## 版权说明
+
+- 上游 `zhengfang-apk` 的代码，版权归原作者 znjhahaha 所有（GPL-3.0）。
+- 本仓库新增与修改的部分（北化适配、好友与课表互传、桌面小组件、官网与服务端等），
+  版权归本仓库作者所有，同样以 GPL-3.0 授权，具体见 [CREDITS.md](CREDITS.md)。
+- 两部分的整体仍然是一个 GPL-3.0 的衍生作品，分发时请遵守 GPL-3.0。
 
 ## 目录结构
 
