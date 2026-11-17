@@ -30,6 +30,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tyust.course.schedule.ScheduleJson
+import com.tyust.course.ui.system.GlassCircleButton
+import com.tyust.course.ui.system.SystemIconButton
+import com.tyust.course.ui.system.SystemTopBar
 import com.tyust.course.ui.system.glass.adaptiveGlassChip
 import com.tyust.course.ui.system.glass.applyChipContentDeformation
 import com.tyust.course.ui.system.glass.rememberInteractiveOptics
@@ -73,37 +76,17 @@ fun FriendSchedulePreview(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+        SystemTopBar(
+            title = "$title 的课表",
+            subtitle = "${courses.size} 门课 · 只读",
+            navigationIcon = {
+                SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", onBack)
             }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "$title 的课表",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "${courses.size} 门课 · 只读",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        )
 
+        // 周次切换沿用课表页那套玻璃胶囊，保持同一种控件语言
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,26 +94,24 @@ fun FriendSchedulePreview(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            IconButton(onClick = { if (week > 1) week-- }) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowLeft,
-                    contentDescription = "上一周",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            GlassCircleButton(
+                onClick = { if (week > 1) week-- },
+                icon = Icons.Filled.KeyboardArrowLeft,
+                contentDescription = "上一周",
+                size = 34.dp
+            )
             Text(
                 text = "第 $week 周",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            IconButton(onClick = { if (week < 25) week++ }) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowRight,
-                    contentDescription = "下一周",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            GlassCircleButton(
+                onClick = { if (week < 25) week++ },
+                icon = Icons.Filled.KeyboardArrowRight,
+                contentDescription = "下一周",
+                size = 34.dp
+            )
         }
 
         Box(Modifier.weight(1f)) {

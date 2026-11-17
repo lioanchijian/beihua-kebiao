@@ -11,9 +11,12 @@ import androidx.compose.runtime.setValue
  *
  * 列表和会话都在同一个 tab 内切换：进会话不跳新页面，返回直接回到列表，
  * 和底栏其它页的层级保持一致。
+ *
+ * onBack 为 null 表示这是底栏的一级页（顶栏不显示返回箭头）；
+ * 从设置页以子页形式打开时才传回调。
  */
 @Composable
-fun FriendsRoute(onBack: () -> Unit = {}) {
+fun FriendsRoute(onBack: (() -> Unit)? = null) {
     var chatTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var chatNickname by rememberSaveable { mutableStateOf("") }
 

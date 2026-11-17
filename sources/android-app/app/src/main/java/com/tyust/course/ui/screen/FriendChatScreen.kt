@@ -1,6 +1,7 @@
 package com.tyust.course.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,22 +36,30 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tyust.course.network.FriendApi
 import com.tyust.course.network.FriendMessage
+import com.tyust.course.social.FriendChatStore
 import com.tyust.course.social.FriendScheduleStore
 import com.tyust.course.social.ScheduleShareCache
 import com.tyust.course.ui.system.GlassTextField
 import com.tyust.course.ui.system.GlassToaster
+import com.tyust.course.ui.system.SystemIconButton
 import com.tyust.course.ui.system.SystemSecondaryButton
+import com.tyust.course.ui.system.SystemTopBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-private const val CHAT_POLL_MS = 4_000L
+/**
+ * 轮询间隔。带本地缓存之后首屏不等网络，这个间隔可以放松一些：
+ * 一个会话从每分钟 15 次请求降到 7 次左右，服务器压力直接减半。
+ */
+private const val CHAT_POLL_MS = 8_000L
 
 /**
  * 好友会话页：文字 + 课表互传。
@@ -68,35 +77,40 @@ fun FriendChatScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    var messages by remember { mutableStateOf<List<FriendMessage>>(emptyList()) }
+    // 首屏直接用本地缓存渲染，不等网络；缓存为空才显示加载态
+    var messages by remember(displayId) {
+        mutableStateOf(FriendChatStore.load(context, displayId))
+    }
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(true) }
-    var lastId by remember { mutableStateOf(0L) }
+    var loading by remember(displayId) { mutableStateOf(messages.isEmpty()) }
+    var lastId by remember(displayId) { mutableStateOf(messages.maxOfOrNull { it.id } ?: 0L) }
     var previewTitle by remember { mutableStateOf<String?>(null) }
     var previewJson by remember { mutableStateOf<String?>(null) }
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
 
-    suspend fun pull() {
-        val thread = FriendApi.thread(context, displayId, sinceId = 0)
+    /** 增量拉取：只要 since_id 之后的新消息，并合并进本地缓存。 */
+    suspend fun pullNew() {
+        val thread = FriendApi.thread(context, displayId, sinceId = lastId)
         if (thread == null) {
             loading = false
             return
         }
-        messages = thread.messages
-        lastId = thread.messages.maxOfOrNull { it.id } ?: 0L
+        if (thread.messages.isNotEmpty()) {
+            messages = FriendChatStore.merge(context, displayId, thread.messages)
+            lastId = messages.maxOfOrNull { it.id } ?: lastId
+        }
         loading = false
     }
 
     LaunchedEffect(displayId) {
         FriendApi.ensureIdentity(context)
-        pull()
+        pullNew()
         while (isActive) {
             delay(CHAT_POLL_MS)
-            val thread = FriendApi.thread(context, displayId, sinceId = lastId) ?: continue
-            if (thread.messages.isNotEmpty()) {
-                messages = messages + thread.messages
-                lastId = thread.messages.maxOfOrNull { it.id } ?: lastId
-            }
+            // 退到后台就不再打服务器，回到前台由下一轮自然接上
+            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) continue
+            pullNew()
         }
     }
 
@@ -120,65 +134,44 @@ fun FriendChatScreen(
             .statusBarsPadding()
             .imePadding()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = nickname.ifBlank { "好友" },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = displayId,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(
-                onClick = {
-                    val snapshot = ScheduleShareCache.snapshot(context)
-                    if (snapshot == null) {
-                        GlassToaster.show("请先打开课表页加载一次课表")
-                        return@IconButton
-                    }
-                    scope.launch {
-                        val err = FriendApi.sendSchedule(
-                            context = context,
-                            displayId = displayId,
-                            ownerName = snapshot.ownerName,
-                            ownerStudentId = snapshot.ownerStudentId,
-                            school = snapshot.school,
-                            term = snapshot.term,
-                            scheduleJson = snapshot.json
-                        )
-                        if (err == null) {
-                            GlassToaster.show("课表已发送")
-                            pull()
-                        } else {
-                            GlassToaster.show(err)
-                        }
-                    }
-                }
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.CalendarMonth,
+        SystemTopBar(
+            title = nickname.ifBlank { "好友" },
+            subtitle = displayId,
+            navigationIcon = {
+                SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", onBack)
+            },
+            actions = {
+                SystemIconButton(
+                    icon = Icons.Outlined.CalendarMonth,
                     contentDescription = "发送我的课表",
+                    onClick = {
+                        val snapshot = ScheduleShareCache.snapshot(context)
+                        if (snapshot == null) {
+                            GlassToaster.show("请先打开课表页加载一次课表")
+                            return@SystemIconButton
+                        }
+                        scope.launch {
+                            val err = FriendApi.sendSchedule(
+                                context = context,
+                                displayId = displayId,
+                                ownerName = snapshot.ownerName,
+                                ownerStudentId = snapshot.ownerStudentId,
+                                school = snapshot.school,
+                                term = snapshot.term,
+                                scheduleJson = snapshot.json
+                            )
+                            if (err == null) {
+                                GlassToaster.show("课表已发送")
+                                pullNew()
+                            } else {
+                                GlassToaster.show(err)
+                            }
+                        }
+                    },
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
-        }
+        )
 
         if (loading) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -189,6 +182,8 @@ fun FriendChatScreen(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
                     bottom = com.tyust.course.ui.system.LocalAppOverlayBottomInset.current + 8.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -262,7 +257,7 @@ fun FriendChatScreen(
                         sending = false
                         if (err == null) {
                             input = ""
-                            pull()
+                            pullNew()
                         } else {
                             GlassToaster.show(err)
                         }
@@ -302,9 +297,15 @@ private fun ChatBubble(
             Column(
                 modifier = Modifier
                     .fillMaxWidth(0.82f)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        RoundedCornerShape(14.dp)
+                        com.tyust.course.ui.system.glassSurfaceColor(),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .border(
+                        0.5.dp,
+                        com.tyust.course.ui.system.glassBorderColor(),
+                        RoundedCornerShape(16.dp)
                     )
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -372,7 +373,7 @@ private fun ChatBubble(
                     .background(
                         if (mine) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
-                        RoundedCornerShape(14.dp)
+                        RoundedCornerShape(16.dp)
                     )
                     .padding(horizontal = 13.dp, vertical = 9.dp)
             )

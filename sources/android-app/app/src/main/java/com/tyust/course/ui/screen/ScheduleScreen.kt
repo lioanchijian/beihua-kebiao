@@ -86,6 +86,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -789,7 +790,10 @@ fun WeekHeaderCompact(
                             lerpDp(headerMetrics.titleGap, 0.dp, collapse)
                         )
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             // 学期信息从分段控件"凝聚"进标题：控件缩掉的同时
                             // 「下学期 ·」从左侧挤出、把标题推向右，标题同时在缩字号。
                             // 一段连续形变，而不是字符串在某一帧突变。
@@ -817,16 +821,38 @@ fun WeekHeaderCompact(
                         // 单独缩容器高度是上一版"文字挤出轨道"的成因：分段控件内部
                         // 写死 height(36.dp)，父约束一小它就被压扁。
                         val segmentFraction = (1f - collapse).coerceIn(0f, 1f)
-                        Box(modifier = Modifier.height(HeaderSegmentHeight * segmentFraction)) {
-                            SemesterCapsuleToggle(
-                                semesterIndex = semesterIndex,
-                                onSelect = onSelectSemester,
-                                width = headerMetrics.semesterWidth,
-                                modifier = Modifier
-                            )
+                        // 账号快速切换和「第 X 学期」放同一行、紧贴分段控件：
+                        // 它不占据动作栏宽度（窄屏上会把最后的「设置」挤出屏幕），
+                        // 也不会像靠右对齐那样在大屏上飘到屏幕中间。
+                        // 折叠时整行高度归零，clipToBounds 让它跟着一起被裁掉，不额外占高度。
+                        Box(
+                            modifier = Modifier
+                                .height(HeaderSegmentHeight * segmentFraction)
+                                .clipToBounds(),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                SemesterCapsuleToggle(
+                                    semesterIndex = semesterIndex,
+                                    onSelect = onSelectSemester,
+                                    width = headerMetrics.semesterWidth,
+                                    modifier = Modifier
+                                )
+                                if (accountLabel.isNotBlank()) {
+                                    Spacer(Modifier.width(8.dp))
+                                    AccountChip(
+                                        label = accountLabel,
+                                        onClick = onAccountClick,
+                                        collapse = collapse
+                                    )
+                                }
+                            }
                         }
                     }
 
+                    // 动作栏回到加账号芯片之前的构成：今天/本周 + 日/周 + 四个圆钮。
+                    // 账号芯片已经挪到标题行，这一行不再需要挤，窄屏也放得下；
+                    // stacked 时仍保留横向滚动，兜住超大字号等极端情况。
                     Row(
                         modifier = Modifier.then(
                             if (headerMetrics.stackedActions) {
@@ -835,14 +861,6 @@ fun WeekHeaderCompact(
                         ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (accountLabel.isNotBlank()) {
-                            AccountChip(
-                                label = accountLabel,
-                                onClick = onAccountClick,
-                                collapse = collapse,
-                                modifier = Modifier.padding(end = 6.dp)
-                            )
-                        }
                         TodayChip(
                             label = if (dayView) "今天" else "本周",
                             onClick = onTodayClick,
@@ -856,7 +874,10 @@ fun WeekHeaderCompact(
                             collapse = collapse,
                             modifier = Modifier.padding(end = 8.dp)
                         )
-                        com.tyust.course.ui.system.TopBarActionRail(Modifier.testTag("schedule-header-actions"), spacing = lerpDp(4.dp, 3.dp, collapse)) {
+                        com.tyust.course.ui.system.TopBarActionRail(
+                            Modifier.testTag("schedule-header-actions"),
+                            spacing = lerpDp(4.dp, 3.dp, collapse)
+                        ) {
                         val buttonSize = lerpDp(34.dp, 30.dp, collapse)
                         val iconSize = lerpDp(16.dp, 15.dp, collapse)
                         action(

@@ -19,7 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,12 +37,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -48,9 +50,15 @@ import com.tyust.course.network.FriendApi
 import com.tyust.course.network.FriendListData
 import com.tyust.course.network.FriendSummary
 import com.tyust.course.social.FriendScheduleStore
+import com.tyust.course.ui.system.GlassIconChip
 import com.tyust.course.ui.system.GlassTextField
 import com.tyust.course.ui.system.GlassToaster
+import com.tyust.course.ui.system.InsetGroupedRow
+import com.tyust.course.ui.system.InsetGroupedSection
+import com.tyust.course.ui.system.LocalAppOverlayBottomInset
+import com.tyust.course.ui.system.SystemIconButton
 import com.tyust.course.ui.system.SystemPrimaryButton
+import com.tyust.course.ui.system.SystemTopBar
 import kotlinx.coroutines.launch
 
 /**
@@ -59,10 +67,12 @@ import kotlinx.coroutines.launch
  * 身份沿用匿名反馈那套短号：不用注册、不用交换学号密码，把 BH-XXXXXX 给同学就能互加。
  * 加成功后可以聊天、互发课表；收到的课表会存到本机固定目录，随后出现在
  * 课表页「切换课表账号」里，直接选中就能看。
+ *
+ * 版式跟设置页一致：玻璃顶栏 + iOS inset grouped 分组，不再用一叠自绘卡片。
  */
 @Composable
 fun FriendsScreen(
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
     onOpenChat: (displayId: String, nickname: String) -> Unit
 ) {
     val context = LocalContext.current
@@ -113,125 +123,95 @@ fun FriendsScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(bottom = com.tyust.course.ui.system.LocalAppOverlayBottomInset.current)
+            .padding(bottom = LocalAppOverlayBottomInset.current)
     ) {
-        Row(
+        SystemTopBar(
+            title = "好友",
+            subtitle = "用短号互加，互相发课表",
+            navigationIcon = onBack?.let {
+                { SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", it) }
+            }
+        )
+
+        Column(
             modifier = Modifier
+                .widthIn(max = 680.dp)
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+            if (booting) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                }
             }
-            Column {
+
+            if (error.isNotBlank()) {
                 Text(
-                    text = "好友",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "用短号互加，互相发课表",
+                    text = error,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = 4.dp)
                 )
             }
-        }
 
-        Box(Modifier.weight(1f)) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 680.dp)
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 8.dp, bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if (booting) {
+            // 我的短号
+            data?.let { me ->
+                InsetGroupedSection(header = "我的短号") {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                    }
-                }
-
-                if (error.isNotBlank()) {
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                // 我的短号
-                data?.let { me ->
-                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                                RoundedCornerShape(16.dp)
-                            )
                             .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "我的短号",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                        GlassIconChip(Icons.Outlined.People, accountColor(me.nickname), size = 36.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 text = me.displayId,
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = me.nickname,
+                                text = "${me.nickname} · 把这串短号发给同学，他加你之后就能互发消息和课表",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
-                            text = "把这串短号发给同学，他加你之后就能互发消息和课表。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(
-                                text = "复制短号",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.clickable {
+                            text = "复制",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable {
                                     clipboard.setText(AnnotatedString(me.displayId))
                                     GlassToaster.show("短号已复制")
                                 }
-                            )
-                        }
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
                     }
                 }
+            }
 
-                // 添加好友
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "添加好友",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+            // 添加好友
+            InsetGroupedSection(
+                header = "添加好友",
+                footer = "输入对方的短号，对方同意后就能互发消息和课表。"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     GlassTextField(
                         value = draft,
                         onValueChange = { draft = it.uppercase().take(12) },
@@ -269,151 +249,96 @@ fun FriendsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
 
-                // 待处理请求
-                data?.requests?.takeIf { it.isNotEmpty() }?.let { requests ->
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "好友申请（${requests.size}）",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        requests.forEach { request ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                        RoundedCornerShape(14.dp)
-                                    )
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // 待处理申请
+            data?.requests?.takeIf { it.isNotEmpty() }?.let { requests ->
+                InsetGroupedSection(header = "好友申请（${requests.size}）") {
+                    requests.forEachIndexed { index, request ->
+                        InsetGroupedRow(
+                            title = request.nickname,
+                            subtitle = request.displayId,
+                            icon = Icons.Outlined.People,
+                            iconTint = accountColor(request.nickname),
+                            showDivider = index != requests.lastIndex,
+                            trailing = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
-                                        text = request.nickname,
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        text = "同意",
+                                        style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = request.displayId,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Text(
-                                    text = "同意",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .clickable {
-                                            scope.launch {
-                                                val err = FriendApi.respond(context, request.id, true)
-                                                GlassToaster.show(err ?: "已添加好友")
-                                                refresh()
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .clickable {
+                                                scope.launch {
+                                                    val err = FriendApi.respond(context, request.id, true)
+                                                    GlassToaster.show(err ?: "已添加好友")
+                                                    refresh()
+                                                }
                                             }
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                                Text(
-                                    text = "忽略",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .clickable {
-                                            scope.launch {
-                                                FriendApi.respond(context, request.id, false)
-                                                refresh()
-                                            }
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 好友列表
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "我的好友（${data?.friends?.size ?: 0}）",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    val friends = data?.friends.orEmpty()
-                    if (friends.isEmpty()) {
-                        Text(
-                            text = "还没有好友。把上面的短号发给同学，互相加一下就能发课表了。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        friends.forEach { friend -> FriendRow(friend, onOpenChat) }
-                    }
-                }
-
-                // 朋友的课表
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "朋友的课表（${schedules.size}）",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (schedules.isEmpty()) {
-                        Text(
-                            text = "收到的课表会自动存在本机，不用手动选文件；在课表页「切换课表账号」里就能选到。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        schedules.forEach { entry ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                        RoundedCornerShape(14.dp)
-                                    )
-                                    .padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    Modifier
-                                        .size(8.dp)
-                                        .background(accountColor(entry.label), CircleShape)
-                                )
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(
-                                        text = entry.label,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                     Text(
-                                        text = entry.subtitle.ifBlank { "本地课表文件" },
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = "忽略",
+                                        style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                }
-                                IconButton(onClick = { pendingDelete = entry }) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Delete,
-                                        contentDescription = "删除这份课表",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        modifier = Modifier
+                                            .clickable {
+                                                scope.launch {
+                                                    FriendApi.respond(context, request.id, false)
+                                                    refresh()
+                                                }
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 }
                             }
-                        }
+                        )
                     }
+                }
+            }
+
+            // 好友列表
+            val friends = data?.friends.orEmpty()
+            InsetGroupedSection(
+                header = "我的好友（${friends.size}）",
+                footer = if (friends.isEmpty()) "还没有好友。把上面的短号发给同学，互相加一下就能发课表了。" else null
+            ) {
+                friends.forEachIndexed { index, friend ->
+                    FriendRow(
+                        friend = friend,
+                        showDivider = index != friends.lastIndex,
+                        onOpenChat = onOpenChat
+                    )
+                }
+            }
+
+            // 朋友的课表
+            InsetGroupedSection(
+                header = "朋友的课表（${schedules.size}）",
+                footer = if (schedules.isEmpty()) {
+                    "收到的课表会自动存在本机，不用手动选文件；在课表页「切换课表账号」里就能选到。"
+                } else {
+                    "在课表页「切换课表账号」里可以直接选，也能让桌面小组件专门显示某一位的课表。"
+                }
+            ) {
+                schedules.forEachIndexed { index, entry ->
+                    InsetGroupedRow(
+                        title = entry.label,
+                        subtitle = entry.subtitle.ifBlank { "本地课表文件" },
+                        icon = Icons.Outlined.CalendarMonth,
+                        iconTint = accountColor(entry.label),
+                        showDivider = index != schedules.lastIndex,
+                        trailing = {
+                            IconButton(onClick = { pendingDelete = entry }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Delete,
+                                    contentDescription = "删除这份课表",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -462,71 +387,45 @@ fun FriendsScreen(
 }
 
 @Composable
-private fun FriendRow(friend: FriendSummary, onOpenChat: (String, String) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                RoundedCornerShape(14.dp)
-            )
-            .clickable { onOpenChat(friend.displayId, friend.nickname) }
-            .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Box(
-            Modifier.size(34.dp).background(accountColor(friend.nickname), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = friend.nickname.take(1),
-                style = MaterialTheme.typography.labelLarge,
-                color = androidx.compose.ui.graphics.Color.White,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = friend.nickname,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1
-                )
-                Text(
-                    text = friend.displayId,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun FriendRow(
+    friend: FriendSummary,
+    showDivider: Boolean,
+    onOpenChat: (String, String) -> Unit
+) {
+    InsetGroupedRow(
+        title = friend.nickname,
+        subtitle = when {
+            friend.lastAt.isBlank() -> "${friend.displayId} · 还没有聊过，打个招呼吧"
+            friend.lastKind == "schedule" -> "${friend.displayId} · [课表]"
+            else -> "${friend.displayId} · ${friend.lastBody}"
+        },
+        icon = Icons.Outlined.People,
+        iconTint = accountColor(friend.nickname),
+        showDivider = showDivider,
+        onClick = { onOpenChat(friend.displayId, friend.nickname) },
+        trailing = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (friend.unread > 0) {
+                    Text(
+                        text = if (friend.unread > 99) "99+" else friend.unread.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.error, RoundedCornerShape(9.dp))
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
                 )
             }
-            Text(
-                text = when {
-                    friend.lastAt.isBlank() -> "还没有聊过，打个招呼吧"
-                    friend.lastKind == "schedule" -> "[课表]"
-                    else -> friend.lastBody
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
         }
-        if (friend.unread > 0) {
-            Text(
-                text = if (friend.unread > 99) "99+" else friend.unread.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onError,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(9.dp))
-                    .padding(horizontal = 6.dp, vertical = 1.dp)
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+    )
 }

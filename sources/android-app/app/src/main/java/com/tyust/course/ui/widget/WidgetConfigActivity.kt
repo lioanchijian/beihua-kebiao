@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tyust.course.R
 import com.tyust.course.manager.AppThemeCoordinator
+import com.tyust.course.ui.system.InsetGroupedSection
+import com.tyust.course.ui.system.SystemIconButton
+import com.tyust.course.ui.system.SystemTopBar
 import com.tyust.course.social.FriendScheduleStore
 import com.tyust.course.ui.system.GlassTextField
 import com.tyust.course.ui.system.SystemPrimaryButton
@@ -185,27 +189,13 @@ private fun WidgetConfigPage(
             .imePadding()
             .navigationBarsPadding()
     ) {
-        // 顶栏：返回 + 标题
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onCancel) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+        SystemTopBar(
+            title = if (isDay) "今日课表小组件" else "课表小组件",
+            subtitle = "只对当前这一个小组件生效",
+            navigationIcon = {
+                SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", onCancel)
             }
-            Text(
-                text = if (isDay) "今日课表小组件" else "课表小组件",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        )
 
         Box(Modifier.weight(1f)) {
             Column(
@@ -213,109 +203,80 @@ private fun WidgetConfigPage(
                     .widthIn(max = 680.dp)
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 4.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                // 说明卡
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                            RoundedCornerShape(16.dp)
-                        )
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "这个设置只对当前这一个小组件生效",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "在桌面点小组件标题可随时回来修改。标题留空时用 App 里的默认名称。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
                 // 标题输入
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "小组件标题",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    GlassTextField(
-                        value = title,
-                        onValueChange = {
-                            if (it.length <= MAX_TITLE_LENGTH) title = it
-                        },
-                        placeholder = effectiveDefault,
-                        singleLine = true
-                    )
-                    Text(
-                        text = "最多 $MAX_TITLE_LENGTH 个字，留空则显示「$effectiveDefault」",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                InsetGroupedSection(
+                    header = "小组件标题",
+                    footer = "在桌面点小组件标题可随时回来修改；最多 $MAX_TITLE_LENGTH 个字，留空则显示「$effectiveDefault」。"
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        GlassTextField(
+                            value = title,
+                            onValueChange = {
+                                if (it.length <= MAX_TITLE_LENGTH) title = it
+                            },
+                            placeholder = effectiveDefault,
+                            singleLine = true
+                        )
+                    }
                 }
 
                 // 课表来源：本机账号 / 好友传来的课表
                 if (friends.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "显示谁的课表",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(
+                    InsetGroupedSection(
+                        header = "显示谁的课表",
+                        footer = if (friendId == null) {
+                            "好友页收到并保存的课表会列在这里，可以让这个小组件专门显示朋友的课表。"
+                        } else {
+                            "只显示课表，不含成绩和考试；朋友课表被删掉后自动回到我的课表。"
+                        }
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
                         ) {
-                            FilterChip(
-                                selected = friendId == null,
-                                onClick = { friendId = null },
-                                label = { Text("我的课表") }
-                            )
-                            friends.forEach { entry ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 FilterChip(
-                                    selected = friendId == entry.id,
-                                    onClick = { friendId = entry.id },
-                                    label = { Text("${entry.label}的课表") }
+                                    selected = friendId == null,
+                                    onClick = { friendId = null },
+                                    label = { Text("我的课表") }
                                 )
+                                friends.forEach { entry ->
+                                    FilterChip(
+                                        selected = friendId == entry.id,
+                                        onClick = { friendId = entry.id },
+                                        label = { Text("${entry.label}的课表") }
+                                    )
+                                }
                             }
                         }
-                        Text(
-                            text = if (friendId == null) {
-                                "好友页收到并保存的课表会列在这里，可以让这个小组件专门显示朋友的课表。"
-                            } else {
-                                "只显示课表，不含成绩和考试；朋友课表被删掉后自动回到我的课表。"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
                 // 账号选择（多账号时才值得显示；选了朋友课表就不需要）
                 if (accounts.size > 1 && friendId == null) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "显示哪个账号的课表",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    InsetGroupedSection(
+                        header = "显示哪个账号的课表",
+                        footer = "选定后，切换 App 内账号不会影响这个小组件。"
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -332,40 +293,27 @@ private fun WidgetConfigPage(
                                 )
                             }
                         }
-                        Text(
-                            text = "选定后，切换 App 内账号不会影响这个小组件。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
                 // 预览
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            RoundedCornerShape(16.dp)
-                        )
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "预览",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = previewTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
-                    )
-                    if (friendLabel != null) {
+                InsetGroupedSection(header = "预览") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
-                            text = "内容：${friendLabel}的课表",
+                            text = previewTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = if (friendLabel != null) "内容：${friendLabel}的课表"
+                            else "内容：本机账号课表",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

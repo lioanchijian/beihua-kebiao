@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.tyust.course.manager.UserManager
+import com.tyust.course.ui.system.InsetGroupedRow
+import com.tyust.course.ui.system.InsetGroupedSection
+import com.tyust.course.ui.system.SystemIconButton
+import com.tyust.course.ui.system.SystemTopBar
 import com.tyust.course.ui.widget.WidgetConfigActivity
 import com.tyust.course.widget.ScheduleDayWidget
 import com.tyust.course.widget.ScheduleWidget
@@ -114,33 +120,11 @@ fun WidgetSettingsScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .statusBarsPadding()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Column {
-                Text(
-                    text = "桌面小组件",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "每个小组件都能单独设置名称、账号或朋友的课表",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        SystemTopBar(
+            title = "桌面小组件",
+            subtitle = "每个小组件都能单独设置名称、账号或朋友的课表",
+            navigationIcon = { SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", onBack) }
+        )
 
         Box(Modifier.weight(1f)) {
             Column(
@@ -149,24 +133,50 @@ fun WidgetSettingsScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 12.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 4.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                CountCard(count = rows.size)
-
-                if (rows.isEmpty()) {
-                    EmptyHint()
-                } else {
-                    rows.forEach { row ->
-                        WidgetRow(
+                InsetGroupedSection(
+                    header = if (rows.isEmpty()) "桌面上还没有小组件" else "桌面上已添加 ${rows.size} 个小组件",
+                    footer = if (rows.isEmpty()) null else "点任意一个就能改它的标题和来源，互不影响。"
+                ) {
+                    rows.forEachIndexed { index, row ->
+                        InsetGroupedRow(
                             title = row.title,
                             subtitle = row.subtitle,
-                            isDay = row.instance.isDay,
+                            icon = if (row.instance.isDay) Icons.Outlined.CalendarToday else Icons.Outlined.ViewWeek,
+                            iconTint = if (row.instance.isDay) Color(0xFF34C759) else Color(0xFF5E5CE6),
+                            showDivider = index != rows.lastIndex,
                             onClick = {
                                 WidgetConfigActivity.start(context, row.instance.appWidgetId, row.instance.isDay)
+                            },
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = "设置这个小组件",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         )
+                    }
+                }
+
+                if (rows.isEmpty()) {
+                    InsetGroupedSection(header = "怎么添加") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "1. 回到桌面，长按空白处\n2. 选「小组件」\n3. 找到「北化课表」，把课表小组件拖到桌面",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -214,118 +224,4 @@ private fun sourceLabel(
     val key = WidgetConfigStore.accountKey(context, instance.appWidgetId)
         ?: return "跟随当前账号"
     return accounts.firstOrNull { it.key == key }?.label ?: "指定账号"
-}
-
-@Composable
-private fun CountCard(count: Int) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text = if (count == 0) "桌面上还没有小组件" else "桌面上已添加 $count 个小组件",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = if (count == 0) {
-                "添加后可以在这里统一改名称、换账号。"
-            } else {
-                "点任意一个就能改它的标题和显示的账号，互不影响。"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun EmptyHint() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(
-            text = "怎么添加",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = "1. 回到桌面，长按空白处\n2. 选「小组件」\n3. 找到「北化课表」，把课表小组件拖到桌面",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun WidgetRow(
-    title: String,
-    subtitle: String,
-    isDay: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                RoundedCornerShape(16.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .background(
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                    RoundedCornerShape(12.dp)
-                )
-                .padding(8.dp)
-        ) {
-            Icon(
-                imageVector = if (isDay) Icons.Outlined.CalendarToday else Icons.Outlined.ViewWeek,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "设置这个小组件",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
 }
