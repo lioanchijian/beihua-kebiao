@@ -73,26 +73,9 @@ class ScheduleDayRemoteViewsFactory(
     override fun onDataSetChanged() {
         try {
             UserManager.getInstance().init(context)
-            // 实例级账号优先：小组件配置页里选过账号就用它，否则跟随当前账号
-            val instanceAccount = WidgetConfigStore.accountKey(context, appWidgetId)
-            val account = instanceAccount ?: UserManager.getInstance().currentAccountStorageKey
-            val school = UserManager.getInstance().currentSchool?.id ?: "buct"
-
-            val prefs = context.getSharedPreferences("schedule_cache", Context.MODE_PRIVATE)
-            val baseKey = "schedule_${account}_${school}"
-
-            val currentJson = prefs.getString("${baseKey}_current", null)
-            var termId = "2026-2027-1"
-            if (currentJson != null) {
-                val obj = JSONObject(currentJson)
-                termId = obj.optString("term", termId)
-            }
-
-            val scheduleJson = prefs.getString("${baseKey}_${termId}", null)
-                ?: com.tyust.course.manager.LocalStore.load(
-                    context,
-                    "schedule_${account}_${school}_${termId}.json"
-                )
+            // 来源优先级：实例配置的朋友课表 > 实例配置/当前账号的本机课表
+            val friendJson = WidgetScheduleSource.loadFriendJson(context, appWidgetId)
+            val scheduleJson = friendJson ?: loadOwnScheduleJson()
 
             if (scheduleJson != null) {
                 courses = ScheduleJson.parse(scheduleJson) ?: emptyList()
@@ -101,6 +84,8 @@ class ScheduleDayRemoteViewsFactory(
                 courseNames.forEachIndexed { index, name ->
                     courseColorMap[name] = index
                 }
+            } else {
+                courses = emptyList()
             }
 
             // 所选日期：今天 + offset（无限前后切换，从 prefs 读取保证最新）
@@ -140,9 +125,10 @@ class ScheduleDayRemoteViewsFactory(
             }
 
             // 考试：读取成绩页持久化的考试缓存，按所选日期匹配
+            // 显示朋友课表时不带考试（那是本机账号的数据，混进来会误导）
             dayExams = emptyList()
             val examPrefs = context.getSharedPreferences("exam_cache", Context.MODE_PRIVATE)
-            val examJson = examPrefs.getString("exams", null)
+            val examJson = if (friendJson == null) examPrefs.getString("exams", null) else null
             if (examJson != null) {
                 val arr = JSONArray(examJson)
                 dayExams = buildList {
@@ -173,6 +159,29 @@ class ScheduleDayRemoteViewsFactory(
             merged = emptyList()
             dayExams = emptyList()
         }
+    }
+
+    /** 本机账号课表：实例配置的账号优先，否则跟随当前账号。 */
+    private fun loadOwnScheduleJson(): String? {
+        val instanceAccount = WidgetConfigStore.accountKey(context, appWidgetId)
+        val account = instanceAccount ?: UserManager.getInstance().currentAccountStorageKey
+        val school = UserManager.getInstance().currentSchool?.id ?: "buct"
+
+        val prefs = context.getSharedPreferences("schedule_cache", Context.MODE_PRIVATE)
+        val baseKey = "schedule_${account}_${school}"
+
+        val currentJson = prefs.getString("${baseKey}_current", null)
+        var termId = "2026-2027-1"
+        if (currentJson != null) {
+            val obj = JSONObject(currentJson)
+            termId = obj.optString("term", termId)
+        }
+
+        return prefs.getString("${baseKey}_${termId}", null)
+            ?: com.tyust.course.manager.LocalStore.load(
+                context,
+                "schedule_${account}_${school}_${termId}.json"
+            )
     }
 
     private fun formatExamTime(time: String): String {

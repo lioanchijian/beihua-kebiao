@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tyust.course.R
 import com.tyust.course.manager.AppThemeCoordinator
+import com.tyust.course.social.FriendScheduleStore
 import com.tyust.course.ui.system.GlassTextField
 import com.tyust.course.ui.system.SystemPrimaryButton
 import com.tyust.course.ui.system.SystemSecondaryButton
@@ -50,6 +51,7 @@ import com.tyust.course.ui.theme.CourseSelectorTheme
 import com.tyust.course.widget.ScheduleDayWidget
 import com.tyust.course.widget.ScheduleWidget
 import com.tyust.course.widget.WidgetConfigStore
+import com.tyust.course.widget.WidgetScheduleSource
 
 /** 标题输入上限（与 ScheduleSettingsManager.widgetTitle 的 take(12) 保持一致）。 */
 private const val MAX_TITLE_LENGTH = 12
@@ -109,8 +111,8 @@ class WidgetConfigActivity : ComponentActivity() {
                     appWidgetId = appWidgetId,
                     isDay = isDay,
                     onCancel = { finish() },
-                    onSave = { rawTitle, accountKey ->
-                        save(rawTitle.trim(), accountKey)
+                    onSave = { rawTitle, accountKey, source ->
+                        save(rawTitle.trim(), accountKey, source)
                         finish()
                     }
                 )
@@ -118,10 +120,11 @@ class WidgetConfigActivity : ComponentActivity() {
         }
     }
 
-    private fun save(title: String, accountKey: String?) {
+    private fun save(title: String, accountKey: String?, source: String?) {
         val ctx = applicationContext
         WidgetConfigStore.setTitle(ctx, appWidgetId, title)
         WidgetConfigStore.setAccount(ctx, appWidgetId, accountKey)
+        WidgetConfigStore.setSource(ctx, appWidgetId, source)
 
         val manager = AppWidgetManager.getInstance(ctx)
         runCatching {
@@ -145,7 +148,7 @@ private fun WidgetConfigPage(
     appWidgetId: Int,
     isDay: Boolean,
     onCancel: () -> Unit,
-    onSave: (String, String?) -> Unit
+    onSave: (String, String?, String?) -> Unit
 ) {
     val context = LocalContext.current
     val effectiveDefault = remember(appWidgetId, isDay) {
@@ -161,6 +164,17 @@ private fun WidgetConfigPage(
     }
     var accountKey by remember(appWidgetId) {
         mutableStateOf(WidgetConfigStore.accountKey(context, appWidgetId))
+    }
+    // 朋友课表：好友页收到并保存到固定目录的那些
+    val friends = remember(appWidgetId) {
+        runCatching { FriendScheduleStore.list(context) }.getOrNull().orEmpty()
+    }
+    var friendId by remember(appWidgetId) {
+        mutableStateOf(WidgetScheduleSource.friendEntry(context, appWidgetId)?.id)
+    }
+    val friendLabel = friends.firstOrNull { it.id == friendId }?.label?.takeIf { it.isNotBlank() }
+    val previewTitle = title.ifBlank {
+        if (friendLabel != null) "${friendLabel}的课表" else effectiveDefault
     }
 
     Column(
@@ -250,8 +264,48 @@ private fun WidgetConfigPage(
                     )
                 }
 
-                // 账号选择（多账号时才值得显示）
-                if (accounts.size > 1) {
+                // 课表来源：本机账号 / 好友传来的课表
+                if (friends.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "显示谁的课表",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = friendId == null,
+                                onClick = { friendId = null },
+                                label = { Text("我的课表") }
+                            )
+                            friends.forEach { entry ->
+                                FilterChip(
+                                    selected = friendId == entry.id,
+                                    onClick = { friendId = entry.id },
+                                    label = { Text("${entry.label}的课表") }
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (friendId == null) {
+                                "好友页收到并保存的课表会列在这里，可以让这个小组件专门显示朋友的课表。"
+                            } else {
+                                "只显示课表，不含成绩和考试；朋友课表被删掉后自动回到我的课表。"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // 账号选择（多账号时才值得显示；选了朋友课表就不需要）
+                if (accounts.size > 1 && friendId == null) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = "显示哪个账号的课表",
@@ -303,12 +357,19 @@ private fun WidgetConfigPage(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = title.ifBlank { effectiveDefault },
+                        text = previewTitle,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1
                     )
+                    if (friendLabel != null) {
+                        Text(
+                            text = "内容：${friendLabel}的课表",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -330,7 +391,10 @@ private fun WidgetConfigPage(
             Box(Modifier.weight(1f)) {
                 SystemPrimaryButton(
                     text = "保存",
-                    onClick = { onSave(title, accountKey) },
+                    onClick = {
+                        val source = friendId?.let { WidgetScheduleSource.encodeFriend(it) }
+                        onSave(title, accountKey, source)
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }

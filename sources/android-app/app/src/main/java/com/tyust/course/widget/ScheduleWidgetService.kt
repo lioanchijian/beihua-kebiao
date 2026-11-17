@@ -64,26 +64,9 @@ class ScheduleRemoteViewsFactory(
     override fun onDataSetChanged() {
         try {
             UserManager.getInstance().init(context)
-            // 实例级账号优先：小组件配置页里选过账号就用它，否则跟随当前账号
-            val instanceAccount = WidgetConfigStore.accountKey(context, appWidgetId)
-            val account = instanceAccount ?: UserManager.getInstance().currentAccountStorageKey
-            val school = UserManager.getInstance().currentSchool?.id ?: "buct"
-
-            val prefs = context.getSharedPreferences("schedule_cache", Context.MODE_PRIVATE)
-            val baseKey = "schedule_${account}_${school}"
-
-            val currentJson = prefs.getString("${baseKey}_current", null)
-            var termId = "2026-2027-1"
-            if (currentJson != null) {
-                val obj = JSONObject(currentJson)
-                termId = obj.optString("term", termId)
-            }
-
-            val scheduleJson = prefs.getString("${baseKey}_${termId}", null)
-                ?: com.tyust.course.manager.LocalStore.load(
-                    context,
-                    "schedule_${account}_${school}_${termId}.json"
-                )
+            // 来源优先级：实例配置的朋友课表 > 实例配置/当前账号的本机课表
+            val scheduleJson = WidgetScheduleSource.loadFriendJson(context, appWidgetId)
+                ?: loadOwnScheduleJson()
 
             if (scheduleJson != null) {
                 courses = ScheduleJson.parse(scheduleJson) ?: emptyList()
@@ -92,6 +75,8 @@ class ScheduleRemoteViewsFactory(
                 courseNames.forEachIndexed { index, name ->
                     courseColorMap[name] = index % courseColors.size
                 }
+            } else {
+                courses = emptyList()
             }
             // 预构建「该节次是否有课」：空行可快速返回，避免每次逐格 find
             // 周数：24 小时内手动切过周则保留，否则自动回到今天所在周（与今日课表小组件统一）
@@ -126,6 +111,29 @@ class ScheduleRemoteViewsFactory(
     }
 
     override fun onDestroy() {}
+
+    /** 本机账号课表：实例配置的账号优先，否则跟随当前账号。 */
+    private fun loadOwnScheduleJson(): String? {
+        val instanceAccount = WidgetConfigStore.accountKey(context, appWidgetId)
+        val account = instanceAccount ?: UserManager.getInstance().currentAccountStorageKey
+        val school = UserManager.getInstance().currentSchool?.id ?: "buct"
+
+        val prefs = context.getSharedPreferences("schedule_cache", Context.MODE_PRIVATE)
+        val baseKey = "schedule_${account}_${school}"
+
+        val currentJson = prefs.getString("${baseKey}_current", null)
+        var termId = "2026-2027-1"
+        if (currentJson != null) {
+            val obj = JSONObject(currentJson)
+            termId = obj.optString("term", termId)
+        }
+
+        return prefs.getString("${baseKey}_${termId}", null)
+            ?: com.tyust.course.manager.LocalStore.load(
+                context,
+                "schedule_${account}_${school}_${termId}.json"
+            )
+    }
 
     override fun getCount(): Int = 12
 

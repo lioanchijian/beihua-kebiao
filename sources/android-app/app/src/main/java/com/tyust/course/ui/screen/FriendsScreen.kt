@@ -437,6 +437,8 @@ fun FriendsScreen(
                         FriendScheduleStore.delete(context, entry.id)
                         schedules = FriendScheduleStore.list(context)
                         pendingDelete = null
+                        // 有小组件正在显示这份课表的话，删掉后让它回落到本机课表
+                        com.tyust.course.widget.ScheduleWidget.refreshAllWidgets(context)
                         GlassToaster.show("已删除")
                     },
                     modifier = Modifier.fillMaxWidth()

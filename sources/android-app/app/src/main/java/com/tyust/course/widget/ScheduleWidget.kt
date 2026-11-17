@@ -73,6 +73,18 @@ class ScheduleWidget : AppWidgetProvider() {
     companion object {
         const val ACTION_PREV_WEEK = "com.tyust.course.widget.PREV_WEEK"
         const val ACTION_NEXT_WEEK = "com.tyust.course.widget.NEXT_WEEK"
+        const val ACTION_REFRESH = "com.tyust.course.widget.REFRESH_WIDGET"
+
+        /** 通知桌面所有课表小组件重读数据（朋友课表保存/删除后调用）。 */
+        fun refreshAllWidgets(context: Context) {
+            listOf(
+                Intent(context, ScheduleWidget::class.java),
+                Intent(context, ScheduleDayWidget::class.java)
+            ).forEach { intent ->
+                intent.action = ACTION_REFRESH
+                runCatching { context.sendBroadcast(intent) }
+            }
+        }
 
         private const val semesterStartDate = 1788192000000L
 

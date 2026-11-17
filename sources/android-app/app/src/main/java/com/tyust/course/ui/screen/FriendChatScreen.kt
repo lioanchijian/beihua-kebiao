@@ -220,6 +220,8 @@ fun FriendChatScreen(
                                     json = json
                                 )
                                 GlassToaster.show("已保存，可在课表页「切换课表账号」里选到")
+                                // 桌面上如果正好有小组件在显示这位朋友的课表，立刻刷新
+                                com.tyust.course.widget.ScheduleWidget.refreshAllWidgets(context)
                             }
                         },
                         onPreviewSchedule = { title, json ->

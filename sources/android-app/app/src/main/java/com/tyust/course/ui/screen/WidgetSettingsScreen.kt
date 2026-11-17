@@ -45,6 +45,7 @@ import com.tyust.course.ui.widget.WidgetConfigActivity
 import com.tyust.course.widget.ScheduleDayWidget
 import com.tyust.course.widget.ScheduleWidget
 import com.tyust.course.widget.WidgetConfigStore
+import com.tyust.course.widget.WidgetScheduleSource
 
 /** 一个已经摆在桌面上的小组件实例。 */
 internal data class WidgetInstance(
@@ -119,7 +120,7 @@ fun WidgetSettingsScreen(onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "每个小组件都能单独设置名称和账号",
+                    text = "每个小组件都能单独设置名称、账号或朋友的课表",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -179,6 +180,9 @@ private fun accountLabel(
     instance: WidgetInstance,
     accounts: List<AccountOption>
 ): String {
+    WidgetScheduleSource.friendEntry(context, instance.appWidgetId)?.let { entry ->
+        return "${entry.label}的课表"
+    }
     val key = WidgetConfigStore.accountKey(context, instance.appWidgetId)
         ?: return "跟随当前账号"
     return accounts.firstOrNull { it.key == key }?.label ?: "指定账号"
