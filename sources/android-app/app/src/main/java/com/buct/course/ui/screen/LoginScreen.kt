@@ -297,6 +297,11 @@ fun LoginScreen(
                         
                         var selectedSchool by remember { mutableStateOf<SchoolConfig?>(null) }
                         var showAddSchoolDialog by remember { mutableStateOf(false) }
+                        val passwordOnlyLogin = selectedSchool?.passwordOnly == true
+
+                        LaunchedEffect(passwordOnlyLogin) {
+                            if (passwordOnlyLogin) loginTab = 0
+                        }
                         
                         // Keep the user's current choice when the list refreshes after add/edit.
                         LaunchedEffect(schools) {
@@ -326,13 +331,30 @@ fun LoginScreen(
                             backdrop = backdrop,
                             maxLabelLines = 2
                         )
-                        Text(
-                            text = if (selectedSchoolIndex == null) com.buct.course.academic.AcademicCapabilities.FOUR_SYSTEMS
-                                else com.buct.course.academic.AcademicCapabilities.name(schools[selectedSchoolIndex].academicSystem),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                        )
+                        if (selectedSchool?.loginHint?.isNotBlank() == true) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = selectedSchool?.loginHint.orEmpty(),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
                         
                         // Add School Dialog
                         if (showAddSchoolDialog) {
@@ -366,8 +388,9 @@ fun LoginScreen(
                         
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // 登录方式切换（密码 / 短信 / 通行密钥）
-                        if (onPasswordLogin != null) {
+                        // 登录方式切换（密码 / 短信 / 通行密钥）。研究生 GMIS 只有密码登录，
+                        // 不显示其它入口，避免用户进入学校未开放的流程。
+                        if (onPasswordLogin != null && !passwordOnlyLogin) {
                             SystemSegmentedControl(
                                 options = listOf("密码登录", "短信登录", "通行密钥"),
                                 selectedIndex = loginTab,

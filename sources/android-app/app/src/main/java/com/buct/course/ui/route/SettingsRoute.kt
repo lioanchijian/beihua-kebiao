@@ -282,6 +282,13 @@ fun SettingsRoute(
     
     fun refreshCookieManually() {
         if (isDemoMode || isRefreshingCookie) return
+        if (UserManager.getInstance().currentSchool?.academicSystem == "southsoft") {
+            relogin.launch(Intent(context, LoginActivity::class.java).apply {
+                putExtra("force_relogin", true)
+                putExtra(LoginActivity.EXTRA_RETURN_TO_CALLER, true)
+            })
+            return
+        }
         cookieUpdateFeedback = null
         val expected = UserManager.getInstance().sessionState.token
         com.buct.course.utils.SessionRepair.repair(context) { outcome ->
@@ -399,7 +406,7 @@ fun SettingsRoute(
             updateInfo = availableUpdate,
             currentVersion = currentVersion,
             onDismiss = { updateState.dismiss() },
-            onUpdate = { updateState.startDownload() },
+            onUpdate = { url -> updateState.startDownload(url) },
             downloadProgress = updateState.downloadProgress(),
             isDownloading = updateState.isDownloading()
         )

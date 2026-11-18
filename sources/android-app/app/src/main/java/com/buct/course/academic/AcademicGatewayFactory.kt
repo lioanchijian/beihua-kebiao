@@ -14,7 +14,8 @@ object AcademicGatewayFactory {
 
     /** Auto-detection opts into this flow but cannot create an adapter yet. */
     fun hasSelectedAdapter(school: SchoolConfig): Boolean = when (AcademicSystem.fromId(school.academicSystem)) {
-        AcademicSystem.ZF, AcademicSystem.ZF_OLD, AcademicSystem.QZ, AcademicSystem.QZ_OLD -> true
+        AcademicSystem.ZF, AcademicSystem.ZF_OLD, AcademicSystem.QZ, AcademicSystem.QZ_OLD,
+        AcademicSystem.SOUTHSOFT -> true
         else -> false
     }
 
@@ -52,6 +53,7 @@ object AcademicGatewayFactory {
             AcademicSystem.ZF_OLD -> ZfOldAcademicAdapter(school, session, transport)
             AcademicSystem.QZ -> QzAcademicAdapter(school, session, transport)
             AcademicSystem.QZ_OLD -> QzOldAcademicAdapter(school, session, transport)
+            AcademicSystem.SOUTHSOFT -> SouthsoftAcademicAdapter(school, session, transport)
             AcademicSystem.LEGACY_ZF, AcademicSystem.AUTO -> error("Academic adapter is not selected")
         }
     }
@@ -59,7 +61,10 @@ object AcademicGatewayFactory {
     fun createStudy(school: SchoolConfig, accountStorageKey: String): AcademicStudyAdapter {
         require(school.academicType() !in setOf(AcademicSystem.AUTO, AcademicSystem.LEGACY_ZF))
         val session = sessions.session(school.id, accountStorageKey, school.fullBasePath)
-        return AcademicStudyReader(school, session, AcademicHttpTransport(school, session))
+        val transport = AcademicHttpTransport(school, session)
+        return if (school.academicType() == AcademicSystem.SOUTHSOFT)
+            SouthsoftStudyReader(school, session, transport)
+        else AcademicStudyReader(school, session, transport)
     }
 
     fun invalidate(school: SchoolConfig, accountStorageKey: String) {
@@ -93,6 +98,7 @@ object AcademicGatewayFactory {
             // Protected framework pages can return an AJAX "not logged in" JSON
             // response to WebView's X-Requested-With header. The root is public.
             AcademicSystem.QZ, AcademicSystem.QZ_OLD -> ""
+            AcademicSystem.SOUTHSOFT -> "home/stulogin"
             else -> ""
         }
         return school.fullBasePath.trimEnd('/') + "/" + path

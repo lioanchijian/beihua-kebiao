@@ -44,6 +44,8 @@ object SystemDetector {
             lower.contains("login_getpublickey") || (lower.contains("csrftoken") && lower.contains("xtgl")) -> AcademicSystem.ZF
             lower.contains("var scode") && lower.contains("var sxh") && lower.contains("logintoxk") -> AcademicSystem.QZ
             lower.contains("flag=sess") || (lower.contains("encodeinp") && lower.contains("%%%")) -> AcademicSystem.QZ_OLD
+            lower.contains("南京南软") || lower.contains("gmis.buct.edu.cn") ||
+                (lower.contains("vericode") && lower.contains("stulogin")) -> AcademicSystem.SOUTHSOFT
             else -> null
         }
     }

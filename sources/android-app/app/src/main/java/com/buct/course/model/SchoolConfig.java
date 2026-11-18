@@ -8,6 +8,12 @@ public class SchoolConfig {
     public String domain;
     public String protocol;
     public String description;
+    /** 登录页展示的额外提示，例如“仅限校园网/VPN 访问”。 */
+    public String loginHint = "";
+    /** true 时登录页只保留密码登录，隐藏短信、通行密钥等入口。 */
+    public boolean passwordOnly = false;
+    /** true 表示该系统只能从校园网或学校 VPN 访问，用于网络失败时的提示。 */
+    public boolean campusNetworkOnly = false;
 
     // Optional protocol adapter. legacy_zf preserves the historical CourseApiClient path.
     public String academicSystem = "legacy_zf";
@@ -156,6 +162,10 @@ public class SchoolConfig {
             json.put("name", name);
             json.put("domain", domain);
             json.put("protocol", protocol);
+            json.put("description", description == null ? "" : description);
+            json.put("loginHint", loginHint == null ? "" : loginHint);
+            json.put("passwordOnly", passwordOnly);
+            json.put("campusNetworkOnly", campusNetworkOnly);
             json.put("academicSystem", academicSystem);
             json.put("detectionSource", detectionSource);
             json.put("pageCharset", pageCharset);
@@ -196,6 +206,10 @@ public class SchoolConfig {
                     json.optString("domain", ""),
                     json.optString("protocol", "https"));
             config.academicSystem = json.optString("academicSystem", "legacy_zf");
+            config.description = json.optString("description", "");
+            config.loginHint = json.optString("loginHint", "");
+            config.passwordOnly = json.optBoolean("passwordOnly", false);
+            config.campusNetworkOnly = json.optBoolean("campusNetworkOnly", false);
             config.detectionSource = json.optString("detectionSource", "legacy");
             config.pageCharset = json.optString("pageCharset", "UTF-8");
             config.academicConfigVersion = json.optInt("academicConfigVersion", 1);

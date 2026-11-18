@@ -3,6 +3,7 @@ package com.buct.course.update
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,17 +30,31 @@ import com.buct.course.ui.theme.NeuPrimary
 
 /**
  * 更新对话框（玻璃 SystemDialog 版）
+ *
+ * @param onUpdate 参数是选定的下载 URL：只有一个源时直接传 downloadUrl，
+ *                 多个源时先弹「选择下载源」再回传所选源的 URL
  */
 @Composable
 fun UpdateDialog(
     updateInfo: UpdateManager.UpdateInfo,
     currentVersion: String,
     onDismiss: () -> Unit,
-    onUpdate: () -> Unit,
+    onUpdate: (String) -> Unit,
     downloadProgress: Int = -1,  // -1 表示未开始下载
     isDownloading: Boolean = false
 ) {
+    // LocalContext.current 只能在组合期读取；remember / onClick 的 lambda 里用这个普通值
+    val appContext = LocalContext.current
     val canDismiss = !isDownloading && !updateInfo.forceUpdate
+
+    // 下载源选择：多源才弹框；默认选中上次用过的源
+    var showSourcePicker by remember(updateInfo) { mutableStateOf(false) }
+    var selectedSourceIndex by remember(updateInfo) {
+        mutableIntStateOf(
+            updateInfo.sources.indexOfFirst { it.url == UpdateManager.getLastSourceUrl(appContext) }
+                .takeIf { it >= 0 } ?: 0
+        )
+    }
 
     // 图标动画：呼吸效果
     val infiniteTransition = rememberInfiniteTransition(label = "iconScale")
@@ -96,7 +111,11 @@ fun UpdateDialog(
             {
                 SystemPrimaryButton(
                     text = "立即更新",
-                    onClick = onUpdate,
+                    onClick = {
+                        // 多个下载源：先选通道；单源：直接下载 downloadUrl
+                        if (updateInfo.sources.size > 1) showSourcePicker = true
+                        else onUpdate(updateInfo.downloadUrl)
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -191,6 +210,72 @@ fun UpdateDialog(
             }
         }
     }
+
+    // 多下载源选择框：version.json 提供 sources 且不止一个时，「立即更新」先选通道
+    if (showSourcePicker && updateInfo.sources.size > 1) {
+        SystemDialog(
+            onDismissRequest = { showSourcePicker = false },
+            title = {
+                Text(
+                    text = "选择下载源",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            dismissButton = {
+                SystemSecondaryButton(
+                    text = "取消",
+                    onClick = { showSourcePicker = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                SystemPrimaryButton(
+                    text = "开始下载",
+                    onClick = {
+                        val chosen = updateInfo.sources.getOrNull(selectedSourceIndex)
+                            ?: updateInfo.sources.first()
+                        UpdateManager.setLastSourceUrl(appContext, chosen.url)
+                        showSourcePicker = false
+                        onUpdate(chosen.url)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                updateInfo.sources.forEachIndexed { index, source ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { selectedSourceIndex = index }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = index == selectedSourceIndex,
+                            onClick = { selectedSourceIndex = index }
+                        )
+                        Text(
+                            text = source.name,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "各下载源为同一个安装包（已校验 SHA-256 一致），高速源通常更快",
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -241,14 +326,18 @@ class UpdateState(
             }
         }, onFinished)
     }
-    
-    fun startDownload() {
+
+    /**
+     * @param url 指定下载源（更新弹窗里选的）；null 时用主 downloadUrl
+     */
+    fun startDownload(url: String? = null) {
         val info = updateInfo() ?: return
+        val downloadUrl = url ?: info.downloadUrl
         setIsDownloading(true)
         setDownloadProgress(0)
-        
+
         updateManager.downloadApk(
-            downloadUrl = info.downloadUrl,
+            downloadUrl = downloadUrl,
             expectedSha256 = info.sha256,
             onProgress = { progress ->
                 setDownloadProgress(progress)

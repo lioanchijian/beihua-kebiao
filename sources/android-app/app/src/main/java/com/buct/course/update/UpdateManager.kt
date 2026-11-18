@@ -32,9 +32,17 @@ class UpdateManager(private val context: Context) {
         // 更新清单：域名优先，IP 作为备用（新旧服务器都保留）
         // 只保留 HTTPS 源：明文 HTTP 会被中间人替换成恶意 version.json，
         // 一旦配合自动下载安装就是远程代码执行。IP 直连源已移除。
+        // downloadUrlIp（明文 HTTP）已移除，只保留 HTTPS 源
         private val VERSION_URLS = listOf(
             "https://buctkb.cn/version.json",
             "https://www.buctkb.cn/version.json"
+        )
+
+        // version.json 尚未下发 downloadSources 时的内置兜底（过渡期兼容旧清单）。
+        // 清单一旦带 downloadSources，一律以清单为准；这里只保证「选择下载源」功能不被旧清单卡住。
+        private val DEFAULT_DOWNLOAD_SOURCES = listOf(
+            DownloadSource("官网", "https://buctkb.cn/download/beihua-kebiao-latest.apk"),
+            DownloadSource("高速下载（OSS）", "https://dl.buctkb.cn/dl/beihua-kebiao-1.0.9.15")
         )
         
         // 下载文件名
@@ -48,6 +56,20 @@ class UpdateManager(private val context: Context) {
                 instance ?: UpdateManager(context.applicationContext).also { instance = it }
             }
         }
+
+        // ---- 下载源偏好（app_prefs）----
+        private const val PREFS_NAME = "app_prefs"
+        private const val KEY_LAST_SOURCE_URL = "update_last_source_url"
+
+        /** 上次选择的下载源 URL；下次弹选择框时默认选中它 */
+        fun getLastSourceUrl(context: Context): String =
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_LAST_SOURCE_URL, "") ?: ""
+
+        fun setLastSourceUrl(context: Context, url: String) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_LAST_SOURCE_URL, url).apply()
+        }
     }
     
     private val client = OkHttpClient.Builder()
@@ -59,6 +81,11 @@ class UpdateManager(private val context: Context) {
     private var downloadReceiver: BroadcastReceiver? = null
     
     /**
+     * version.json 的 downloadSources 条目：多下载源选择（点「立即更新」时选）
+     */
+    data class DownloadSource(val name: String, val url: String)
+
+    /**
      * 更新信息数据类
      */
     data class UpdateInfo(
@@ -67,7 +94,9 @@ class UpdateManager(private val context: Context) {
         val releaseNotes: String,
         val downloadUrl: String,
         val forceUpdate: Boolean,
-        val sha256: String = ""
+        val sha256: String = "",
+        // 备用下载源（官网/镜像等），与 downloadUrl 是同一个安装包（sha256 相同）
+        val sources: List<DownloadSource> = emptyList()
     )
     
     /**
@@ -154,13 +183,35 @@ class UpdateManager(private val context: Context) {
                                     tryUrl(index + 1)
                                     return
                                 }
+                                // 下载源列表（App 内选择下载通道用）：只收 HTTPS 源，防止被降级或替换
+                                val sources = buildList {
+                                    val arr = obj.optJSONArray("downloadSources")
+                                    if (arr != null) {
+                                        for (i in 0 until arr.length()) {
+                                            val item = arr.optJSONObject(i) ?: continue
+                                            val name = item.optString("name").trim()
+                                            val srcUrl = item.optString("url").trim()
+                                            if (name.isNotEmpty() && srcUrl.startsWith("https://")) {
+                                                add(DownloadSource(name, srcUrl))
+                                            }
+                                        }
+                                    }
+                                }
+                                // 清单未给多源时补上内置默认源（过渡期兼容），已有 2 个及以上则以清单为准
+                                val effectiveSources = if (sources.size > 1) sources else buildList {
+                                    addAll(sources)
+                                    DEFAULT_DOWNLOAD_SOURCES.forEach { def ->
+                                        if (this.none { it.url == def.url }) add(def)
+                                    }
+                                }
                                 val updateInfo = UpdateInfo(
                                     versionCode = serverVersionCode,
                                     versionName = obj.optString("versionName", ""),
                                     releaseNotes = obj.optString("releaseNotes", ""),
                                     downloadUrl = downloadUrl,
                                     forceUpdate = obj.optBoolean("forceUpdate", false),
-                                    sha256 = obj.optString("sha256", "")
+                                    sha256 = obj.optString("sha256", ""),
+                                    sources = effectiveSources
                                 )
                                 mainHandler.post { callback(updateInfo); onFinished(true) }
                             } else {

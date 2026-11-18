@@ -179,14 +179,14 @@ fun SettingsScreen(
                     icon = Icons.Outlined.School,
                     iconTint = Color(0xFF0A84FF),
                     title = "学校选择",
-                    subtitle = listOf(schoolName.ifBlank { "未选择学校" }, academicSystemName).filter(String::isNotBlank).joinToString(" · "),
+                    subtitle = schoolName.ifBlank { "未选择学校" },
                     onClick = onSchoolSelect
                 )
                 SettingsRow(
                     icon = Icons.Outlined.School,
                     iconTint = Color(0xFF18796B),
                     title = "教务支持与限制",
-                    subtitle = academicSystemName.ifBlank { com.buct.course.academic.AcademicCapabilities.FOUR_SYSTEMS },
+                    subtitle = academicSystemName.ifBlank { com.buct.course.academic.AcademicCapabilities.SUPPORTED_SYSTEMS },
                     onClick = onAcademicSupport
                 )
                 SettingsRow(

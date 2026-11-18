@@ -201,7 +201,9 @@ object SessionRenewer {
 
     val state get() = coordinator.state
 
-    @JvmStatic fun canRenew(): Boolean = coordinator.canAttempt(UserManager.getInstance().sessionState.token)
+    @JvmStatic fun canRenew(): Boolean =
+        UserManager.getInstance().currentSchool?.academicSystem != "southsoft" &&
+            coordinator.canAttempt(UserManager.getInstance().sessionState.token)
 
     fun sessionChanged() = onMain { coordinator.sessionChanged() }
 
@@ -209,7 +211,13 @@ object SessionRenewer {
         expected: SessionToken,
         manual: Boolean = false,
         onDone: (SessionRecoveryResult) -> Unit = {}
-    ) = onMain { coordinator.request(expected, manual, onDone) }
+    ) = onMain {
+        if (UserManager.getInstance().currentSchool?.academicSystem == "southsoft") {
+            onDone(SessionRecoveryResult.NeedsLogin(RecoveryFailure.VerificationRequired))
+            return@onMain
+        }
+        coordinator.request(expected, manual, onDone)
+    }
 
     /** 验证过程中刷新图形验证码（也是首次进入二次验证时的首张图）。 */
     fun refreshSecondaryCaptcha() {

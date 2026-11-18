@@ -22,6 +22,10 @@ object SessionRepair {
      */
     fun repair(context: Context, onResult: (Outcome) -> Unit) {
         val user = UserManager.getInstance()
+        if (user.currentSchool?.academicSystem == "southsoft") {
+            onResult(Outcome(false, "研究生系统需要重新输入密码和图形验证码，请到登录页重新登录"))
+            return
+        }
         if (!SyncSettings.enabled(context.applicationContext)) {
             onResult(Outcome(false, "在线同步未开启，更新登录状态需要联网，请先打开「在线同步」"))
             return

@@ -103,8 +103,8 @@ fun OnboardingScreen(
             ),
             OnboardingPage(
                 icon = Icons.Outlined.RocketLaunch,
-                title = "支持四类教务",
-                description = "${com.buct.course.academic.AcademicCapabilities.FOUR_SYSTEMS}。可自行添加学校地址；具体支持范围可在「设置 → 教务支持与限制」查看。"
+                title = "支持多类教务",
+                description = "支持多类教务系统。可自行添加学校地址；具体支持范围可在「设置 → 教务支持与限制」查看。"
             )
         )
     }

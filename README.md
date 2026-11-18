@@ -2,6 +2,8 @@
 
 北京化工大学的课表 App：课表、成绩、空闲教室、抢课，外加好友与课表互传。
 
+支持的教务系统：正方、强智、南软研究生（GMIS 5.x）等；具体支持范围以「设置 → 教务支持与限制」和学校实际返回为准。
+
 - 官网：https://buctkb.cn
 - 仓库：https://github.com/lioanchijian/beihua-kebiao
 - 许可证：[GPL-3.0](LICENSE)

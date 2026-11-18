@@ -158,7 +158,7 @@ fun AcademicCourseListRoute(school: SchoolConfig) {
             }
             if (tab == 0) {
                 Text(
-                    text = "${school.name} · ${AcademicCapabilities.name(school.academicSystem)}",
+                    text = school.name,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -462,7 +462,7 @@ fun AcademicGrabQueueRoute(school: SchoolConfig) {
     } } }
     GrabProScreen(isRunning = running, successCount = success, failCount = failed, retryCount = retries,
         targetCourseName = target?.courseName, targetCourseTeacher = target?.teacher, logText = log,
-        schoolName = "${school.name} · ${AcademicCapabilities.name(school.academicSystem)}",
+        schoolName = school.name,
         onClearTargetCourse = { store.setTarget(account, null); target = null },
         isFuzzyMatchMode = target?.useExactMatch == false, fuzzyMatchTarget = target?.takeUnless { it.useExactMatch }?.courseName,
         onStartFuzzyMatch = { requestStart(false) }, onClearFuzzyMatchTarget = { store.setTarget(account, null); target = null },

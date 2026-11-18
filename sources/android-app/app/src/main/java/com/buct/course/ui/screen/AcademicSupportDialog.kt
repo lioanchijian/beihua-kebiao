@@ -21,7 +21,7 @@ fun AcademicSupportDialog(currentSystem: String?, onDismiss: () -> Unit) {
     SystemDialog(onDismissRequest = onDismiss, title = { Text(currentSupport?.let { it.name + "支持与限制" } ?: "四类教务支持与限制") },
         confirmButton = { SystemPrimaryButton(text = "关闭", onClick = onDismiss, modifier = Modifier.fillMaxWidth()) }) {
         Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("${AcademicCapabilities.FOUR_SYSTEMS}。选课、退课、批量选课、目标监控、队列和定时任务共用应用入口；课表、成绩、考试及导出按学校实际返回的数据展示。",
+            Text("${AcademicCapabilities.SUPPORTED_SYSTEMS}。选课、退课、批量选课、目标监控、队列和定时任务共用应用入口；课表、成绩、考试及导出按学校实际返回的数据展示。",
                 style = MaterialTheme.typography.bodyMedium)
             Text(AcademicCapabilities.ACCOUNT_LIMIT, style = MaterialTheme.typography.bodySmall)
             (currentSupport?.let(::listOf) ?: AcademicCapabilities.systems).forEach { support ->

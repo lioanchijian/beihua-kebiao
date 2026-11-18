@@ -85,6 +85,20 @@ public class UserManager {
     private UserManager() {
         // 初始化默认学校
         defaultSchools.add(new SchoolConfig("buct", "北京化工大学", "jwglxt.buct.edu.cn", "https"));
+
+        // 研究生管理信息系统（南京南软 GMIS 5.0）。只能校园网/VPN 访问，
+        // 且只提供学号 + 密码 + 图形验证码这一种登录方式。
+        SchoolConfig graduate = new SchoolConfig(
+                "buct_yjs", "北京化工大学（研究生）", "gmis.buct.edu.cn", "https");
+        graduate.academicSystem = "southsoft";
+        graduate.basePath = "";
+        graduate.pageCharset = "UTF-8";
+        graduate.description = "研究生管理信息系统（南京南软 GMIS 5.0）";
+        graduate.loginHint = "仅限校园网/VPN 访问；仅支持学号 + 密码 + 图形验证码登录";
+        graduate.passwordOnly = true;
+        graduate.campusNetworkOnly = true;
+        defaultSchools.add(graduate);
+
         // 重要修复：这里不要直接赋值 currentSchool，等待 init() 时从 SharedPreferences 加载
     }
 
