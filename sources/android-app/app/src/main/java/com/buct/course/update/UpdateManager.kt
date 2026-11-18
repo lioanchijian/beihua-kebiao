@@ -40,9 +40,9 @@ class UpdateManager(private val context: Context) {
 
         // version.json 尚未下发 downloadSources 时的内置兜底（过渡期兼容旧清单）。
         // 清单一旦带 downloadSources，一律以清单为准；这里只保证「选择下载源」功能不被旧清单卡住。
+        // 镜像通道当前未启用，兜底只保留官网，避免带出版本号写死的旧包。
         private val DEFAULT_DOWNLOAD_SOURCES = listOf(
-            DownloadSource("官网", "https://buctkb.cn/download/beihua-kebiao-latest.apk"),
-            DownloadSource("高速下载（OSS）", "https://dl.buctkb.cn/dl/beihua-kebiao-1.0.9.15")
+            DownloadSource("官网", "https://buctkb.cn/download/beihua-kebiao-latest.apk")
         )
         
         // 下载文件名

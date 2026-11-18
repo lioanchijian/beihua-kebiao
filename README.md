@@ -78,8 +78,8 @@ app\build\outputs\apk\release\app-release.apk
 
 ## 当前版本
 
-- App：`1.0.9.14 (104)`
-- 网站：`1.0.9.14`
+- App：`1.0.9.16 (106)`
+- 网站：`1.0.9.16`
 - 统计接口：`https://buctkb.cn/api/stats/ping`
 
 ## 开源协议
