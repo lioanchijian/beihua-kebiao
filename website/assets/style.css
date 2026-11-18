@@ -36,6 +36,10 @@ h3{font-size:18px;margin:0 0 8px;letter-spacing:-.02em}
 .btn-ghost{background:#fff;color:#334155;border:1px solid var(--line);box-shadow:0 8px 20px rgba(15,23,42,.04)}
 .btn-light{background:#fff;color:#1d4ed8;box-shadow:0 16px 34px rgba(2,6,23,.18)}
 .btn-icon{font-size:18px;line-height:1}
+.btn-glass{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.42);backdrop-filter:blur(8px);box-shadow:0 12px 28px rgba(2,6,23,.16)}
+.btn-glass:hover{background:rgba(255,255,255,.22)}
+.download-hint{color:#cbd5e1;font-size:13px;line-height:1.75;margin:18px 0 0;max-width:560px}
+.download-hint a{color:#fff;text-decoration:underline;text-underline-offset:3px;font-weight:700}
 .hero-meta{display:flex;flex-wrap:wrap;gap:14px;align-items:center;color:var(--muted);font-size:13px;margin-top:26px}
 .version-pill{background:#dcfce7;color:#15803d;border-radius:999px;padding:5px 11px;font-weight:800}
 .hero-visual{position:relative;display:flex;justify-content:center;padding:20px 0}
