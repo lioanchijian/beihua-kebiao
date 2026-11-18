@@ -75,7 +75,7 @@ configurations.configureEach {
 }
 
 android {
-    namespace 'com.tyust.course'
+    namespace 'com.buct.course'
     compileSdk 37
 
     defaultConfig {

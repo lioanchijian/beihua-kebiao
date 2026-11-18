@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 与 1.0.9.12 保持一致：不要加 android:configure。
+     一旦声明 configure，桌面添加时系统会先拉起配置页，部分 ROM（vivo / 荣耀）
+     会在这步失败并提示「未安装该应用」，导致根本加不上小组件。
+     实例级配置改由「点击小组件标题」进入，见 ScheduleWidget 的 titleClickPendingIntent。 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="170dp"
@@ -8,5 +12,4 @@
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_schedule"
     android:description="@string/widget_description"
-    android:previewImage="@mipmap/ic_launcher"
-    android:configure="com.buct.course/.ui.widget.WidgetConfigActivity" />
+    android:previewImage="@mipmap/ic_launcher" />

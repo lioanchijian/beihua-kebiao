@@ -1,0 +1,806 @@
+package com.buct.course
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.graphics.Paint
+import android.graphics.Picture
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.buct.course.utils.SessionRenewer
+import com.buct.course.utils.RecoveryPhase
+import com.buct.course.ui.system.SessionNoticeViewModel
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.buct.course.ui.system.PageDataViewModel
+import com.buct.course.ui.system.LocalPageDataState
+import com.buct.course.ui.system.NavScrollIntent
+import com.buct.course.ui.system.AppSymbolSpec
+import com.buct.course.ui.system.GlassOverlayHost
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import com.buct.course.activation.ActivationManager
+import com.buct.course.activation.ActivationScreen
+import com.buct.course.manager.AppearanceSettingsManager
+import com.buct.course.manager.SmartSelector
+import com.buct.course.manager.UserManager
+import com.buct.course.ui.screen.OnboardingScreen
+import com.buct.course.ui.screen.SchoolAdaptationCompletionReminder
+import com.buct.course.ui.system.CapsuleNavigationBar
+import com.buct.course.ui.system.DialogHost
+import com.buct.course.ui.system.GlassToastHost
+import com.buct.course.ui.system.GlassToaster
+import com.buct.course.ui.system.LocalAppBackdrop
+import com.buct.course.ui.system.drawWallpaperPattern
+import com.buct.course.ui.system.LocalAppOverlayBottomInset
+import com.buct.course.ui.system.LocalDialogHost
+import com.buct.course.ui.system.LocalModalBackdrop
+import com.buct.course.ui.system.LocalFloatingNotice
+import com.buct.course.ui.system.LocalNoticeAnchor
+import com.buct.course.ui.system.NoticeAnchorState
+import com.buct.course.ui.system.LocalControlBackdrop
+import com.buct.course.ui.system.FloatingNotice
+import com.buct.course.ui.system.FloatingNoticeHost
+import com.buct.course.ui.system.PagePadding
+import com.buct.course.ui.system.isBackdropSupported
+import com.buct.course.ui.system.rememberDialogHostState
+import com.buct.course.ui.system.rememberGlassAccessibilityMode
+import com.buct.course.ui.system.glass.glassLensAnchor
+import com.buct.course.ui.system.glass.drawBackdropSource
+import androidx.compose.ui.platform.LocalDensity
+import com.buct.course.ui.theme.CourseSelectorTheme
+import com.buct.course.ui.theme.MotionEasing
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.shadow.Shadow
+import androidx.compose.ui.platform.LocalContext
+import com.buct.course.ui.system.SystemDialog
+import com.buct.course.ui.system.SystemPrimaryButton
+import com.buct.course.ui.system.SystemSecondaryButton
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
+import com.buct.course.manager.StartupPage
+import com.buct.course.manager.StartupPagePreferences
+import com.buct.course.ui.system.GlassRecipe
+import com.buct.course.ui.system.glass.drawBlurred
+
+class MainActivity : FragmentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.buct.course.manager.AppThemeCoordinator.wrapContext(newBase))
+    }
+
+    companion object {
+        private const val PREFS_NAME = "app_prefs"
+        private const val KEY_HAS_SEEN_ONBOARDING = "has_seen_onboarding"
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        com.buct.course.ui.theme.StartupLogoAnimation.install(this)
+        super.onCreate(savedInstanceState)
+
+        UserManager.getInstance().init(this)
+        if (savedInstanceState == null) com.buct.course.schedule.CourseReminderNavigation.accept(intent)
+
+        val userManager = UserManager.getInstance()
+        if (BuildConfig.UI_PREVIEW) {
+            userManager.startDemoSession(com.buct.course.demo.DemoData.school())
+        }
+
+        SmartSelector.getInstance().init(this)
+        com.buct.course.network.CourseApiClient.getInstance().init(this)
+
+        if (!userManager.isLoggedIn && !(userManager.hasSavedCookie() && userManager.sessionState.state.value.expired)) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val hasSeenOnboarding = prefs.getBoolean(KEY_HAS_SEEN_ONBOARDING, false)
+
+        setContent {
+            CourseSelectorTheme {
+                var showOnboarding by remember { mutableStateOf(!hasSeenOnboarding && !userManager.isDemoMode) }
+                // 开源版授权检查不会拒绝设备，先呈现真实内容，再完成兼容检查。
+                var activationState by remember { mutableIntStateOf(2) }
+
+                LaunchedEffect(Unit) {
+                    if (!userManager.isDemoMode) {
+                        val activated = ActivationManager.checkActivation(this@MainActivity)
+                        if (!activated) activationState = 1
+                    }
+                }
+
+                when {
+                    activationState == 1 -> {
+                        ActivationScreen(onActivated = { activationState = 2 })
+                    }
+
+                    showOnboarding -> {
+                        OnboardingScreen(
+                            onFinish = {
+                                prefs.edit().putBoolean(KEY_HAS_SEEN_ONBOARDING, true).apply()
+                                showOnboarding = false
+                            }
+                        )
+                    }
+
+                    else -> {
+                        MainScreen(fragmentActivity = this@MainActivity)
+                    }
+                }
+            }
+        }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        com.buct.course.schedule.CourseReminderNavigation.accept(intent)
+    }
+}
+
+sealed class BottomNavItem(
+    val page: StartupPage,
+    val symbol: AppSymbolSpec
+) {
+    val route: String get() = page.route
+    val label: String get() = page.label
+    val icon: ImageVector get() = symbol.outline
+    object Courses : BottomNavItem(StartupPage.Courses, AppSymbolSpec.Courses)
+    object Schedule : BottomNavItem(StartupPage.Schedule, AppSymbolSpec.Schedule)
+    object Grab : BottomNavItem(StartupPage.Grab, AppSymbolSpec.Grab)
+    object Friends : BottomNavItem(StartupPage.Friends, AppSymbolSpec.Friends)
+    object Grades : BottomNavItem(StartupPage.Grades, AppSymbolSpec.Grades)
+    object Settings : BottomNavItem(StartupPage.Settings, AppSymbolSpec.Settings)
+
+    companion object {
+        // 导航顺序：课表放正中间（主要使用课表功能）；抢课已并入课程页的二级目录
+        val entries: List<BottomNavItem> get() = listOf(Courses, Friends, Schedule, Grades, Settings)
+
+        fun of(page: StartupPage): BottomNavItem = when (page) {
+            StartupPage.Courses -> Courses
+            StartupPage.Schedule -> Schedule
+            // 抢课合并进课程页，老配置指向抢课时落到课程
+            StartupPage.Grab -> Courses
+            StartupPage.Friends -> Friends
+            StartupPage.Grades -> Grades
+            StartupPage.Settings -> Settings
+        }
+    }
+}
+
+@Composable
+fun MainScreen(fragmentActivity: FragmentActivity) {
+    val context = LocalContext.current
+    val appWallpaper = com.buct.course.ui.theme.rememberAppWallpaperStyle()
+    val isDemoMode = remember { UserManager.getInstance().isDemoMode }
+    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    val startupPagePreferences = remember(context) { StartupPagePreferences.from(context) }
+    // 底栏由用户配置决定：顺序可调、页面可隐藏（设置页永远保留）
+    val navConfigRevision = com.buct.course.manager.BottomNavPreferences.revision
+    val items = remember(navConfigRevision) {
+        com.buct.course.manager.BottomNavPreferences.visiblePages().map { BottomNavItem.of(it) }
+    }
+    
+    val hasStarred = prefs.getBoolean("has_starred", false)
+    val dismissCount = prefs.getInt("star_dismiss_count", 0)
+    val shouldShowStarDialog = false
+    var showStarDialog by rememberSaveable { mutableStateOf(false) }
+    var startupOverlaysReady by remember { mutableStateOf(false) }
+
+    val sessionStore = UserManager.getInstance().sessionState
+    val session by sessionStore.state.collectAsState()
+    val currentAccountStorageKey = session.token.accountStorageKey
+    val accessibility = rememberGlassAccessibilityMode()
+    val pageDataViewModel: PageDataViewModel = viewModel()
+    val pageData = remember(currentAccountStorageKey) { pageDataViewModel.forAccount(currentAccountStorageKey) }
+    // Resolve before creating the motion state so the first frame is already on the chosen page.
+    var selectedTab by remember(pageData) {
+        pageData.state("navigation.tab") {
+            val startupPage = startupPagePreferences.read()
+            items.indexOfFirst { it.page == startupPage }.coerceAtLeast(0)
+        }
+    }
+    // 配置变更那一帧 selectedTab 可能还是旧下标（隐藏一页后就越界），
+    // 所有渲染路径统一用夹紧后的值；真正的下标由下面的 effect 按页面身份修正。
+    val safeSelectedTab = selectedTab.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+    val navigationMotion = com.buct.course.ui.theme.rememberNavigationMotionState(safeSelectedTab, currentAccountStorageKey, accessibility.reduceMotion)
+    // 底栏配置变了（顺序/显隐）要停在原来那一页，而不是停在同一个下标——
+    // 顺序一变，同一个下标可能指向完全不同的页面。
+    var previousNavItems by remember { mutableStateOf(items) }
+    LaunchedEffect(items) {
+        val currentPage = previousNavItems.getOrNull(selectedTab)?.page
+        selectedTab = if (currentPage == null) {
+            selectedTab.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+        } else {
+            items.indexOfFirst { it.page == currentPage }.takeIf { it >= 0 } ?: 0
+        }
+        previousNavItems = items
+    }
+    val reminderRequest = com.buct.course.schedule.CourseReminderNavigation.requestedId
+    LaunchedEffect(reminderRequest, currentAccountStorageKey) {
+        if (reminderRequest != null) {
+            val scheduleIndex = items.indexOfFirst { it.page == StartupPage.Schedule }
+            if (com.buct.course.schedule.ScheduleReminderScheduler.get(context).findById(reminderRequest) != null && scheduleIndex >= 0) {
+                selectedTab = scheduleIndex
+            } else {
+                com.buct.course.ui.system.GlassToaster.show("这条课程提醒已失效或属于其他账号")
+                com.buct.course.schedule.CourseReminderNavigation.consume()
+            }
+        }
+    }
+    val dialogHostState = key(currentAccountStorageKey) { rememberDialogHostState() }
+    val density = LocalDensity.current
+    val pageTravelPx = with(density) { 8.dp.roundToPx() }
+    val recovery by SessionRenewer.state.collectAsState()
+    val isTokenExpired = session.expired && recovery.token == session.token && recovery.phase == RecoveryPhase.NeedsLogin
+    val isRecovering = session.expired && !isTokenExpired
+    val noticeModel: SessionNoticeViewModel = viewModel()
+    val sessionNotice by noticeModel.notices.state.collectAsState()
+    var foreground by remember { mutableStateOf(fragmentActivity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+    val relogin = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            SessionRenewer.sessionChanged()
+            val current = sessionStore.state.value
+            if (!current.expired) noticeModel.notices.update(current, needsLogin = false, canPresent = false)
+        }
+    }
+    val beginRelogin: () -> Unit = {
+        if (sessionStore.isCurrent(session.token) && sessionStore.state.value.expired) {
+            noticeModel.notices.dismiss(session.token)
+            relogin.launch(Intent(fragmentActivity, LoginActivity::class.java).apply {
+                putExtra("force_relogin", true)
+                putExtra(LoginActivity.EXTRA_RETURN_TO_CALLER, true)
+            })
+        }
+    }
+    DisposableEffect(fragmentActivity) {
+        val observer = LifecycleEventObserver { _, _ ->
+            foreground = fragmentActivity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+        fragmentActivity.lifecycle.addObserver(observer)
+        onDispose { fragmentActivity.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(session, isTokenExpired, foreground, dialogHostState.hasBlockingSurface) {
+        noticeModel.notices.update(session, isTokenExpired, foreground && !dialogHostState.hasBlockingSurface)
+    }
+
+    // 底栏滚动最小化：捕获页面内任意滚动的方向（nested scroll 冒泡，页面零改动）
+    var navBarMinimized by remember { mutableStateOf(false) }
+    // API31/32 折射底图的新鲜度。页面内容随滚动移动，底图必须跟着重拍，
+    // 否则折射里是启动那一刻的画面。见 GlassLensFreshness 的注释。
+    //
+    // 其它 API 上是 null：onScroll() 会写一个 mutableIntState，写在滚动的热路径上。
+    // 33+ 没有底图要重拍，那份写入没有任何消费者，白烧。
+    val lensFreshness = remember {
+        if (com.buct.course.ui.system.glass.isGlassLensApplicable()) {
+            com.buct.course.ui.system.glass.GlassLensFreshness()
+        } else {
+            null
+        }
+    }
+    val navScrollIntent = remember { NavScrollIntent() }
+    val navBarScrollConnection = remember(density, dialogHostState) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && dialogHostState.currentDialog == null) {
+                    if (consumed.y == 0f && available.y > 0f) {
+                        navBarMinimized = false
+                        navScrollIntent.reset()
+                    } else if (kotlin.math.abs(consumed.y) > kotlin.math.abs(consumed.x)) {
+                        navScrollIntent.scroll(consumed.y / density.density)?.let { navBarMinimized = it }
+                    }
+                }
+                // 惯性滑行（source == SideEffect）也要算：手指离开后页面还在动
+                if (consumed.y != 0f) {
+                    lensFreshness?.onScroll()
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(selectedTab) {
+        navBarMinimized = false
+        navScrollIntent.reset()
+    }
+
+    LaunchedEffect(shouldShowStarDialog) {
+        withFrameNanos { }
+        delay(1_600)
+        startupOverlaysReady = true
+        if (shouldShowStarDialog) showStarDialog = true
+    }
+
+    LaunchedEffect(session.token, session.expired) {
+        SessionRenewer.sessionChanged()
+        if (session.expired) SessionRenewer.request(session.token)
+    }
+
+    DisposableEffect(fragmentActivity, session.token, session.expired, foreground) {
+        if (foreground && !isDemoMode && UserManager.getInstance().currentSchool != null && !session.expired) {
+            com.buct.course.utils.CookieWatchdog.start(fragmentActivity)
+        }
+        onDispose {
+            com.buct.course.utils.CookieWatchdog.stop()
+        }
+    }
+
+    SchoolAdaptationCompletionReminder(
+        enabled = !isDemoMode && !session.expired && startupOverlaysReady && !showStarDialog,
+        accountScopeKey = currentAccountStorageKey
+    )
+    GlassOverlayHost(modifier = Modifier.fillMaxSize()) {
+        val useGlass = isBackdropSupported()
+        // debug 平铺水印的开关。**它绝不能进任何 backdrop 捕获层**，见文件末尾
+        // debugPiracyWatermark 的注释——落在采样层里会让 debug 包的折射永远看起来正常。
+        val showPiracyTiles = false
+        val tokenExpiredNotice = if (isTokenExpired) {
+            FloatingNotice(
+                message = "需要重新登录",
+                actionLabel = "重新登录",
+                onClick = beginRelogin
+            )
+        } else if (isRecovering) {
+            FloatingNotice(message = "正在恢复登录状态", actionLabel = "恢复中", onClick = {})
+        } else {
+            null
+        }
+
+        val wallpaperBackdrop = if (useGlass) {
+            rememberLayerBackdrop()
+        } else {
+            null
+        }
+
+        // 底栏位于该层外，只能单向采样壁纸与页面内容。
+        val navBarBackdrop = if (useGlass) {
+            rememberLayerBackdrop()
+        } else {
+            null
+        }
+
+        // 顶栏把底边写进这里，通知覆盖层据此落位，避免压住顶栏按钮
+        val noticeAnchorState = remember { NoticeAnchorState() }
+        // 内容要避开的底栏高度【由底栏自己算】。原先这里写死 96dp，是照手势条量的；
+        // 三键导航下底栏实际 136dp 高，各页列表的末项就有一截藏在栏后面。
+        val navBarContentInset = com.buct.course.ui.system.NavBarMetrics.contentInset()
+
+        // ## API 31/32 的全局折射区域
+        //
+        // 绝大多数控件（按钮、圆钮、开关、选择器）采样的是 `LocalControlBackdrop`，
+        // 而它在这里就是 `wallpaperBackdrop` —— **一层静态壁纸**。所以整个 App
+        // 只需要一张底图，一次快照，之后除了换壁纸/换主题都不必重拍。
+        //
+        // 为什么是全屏一张、而不是每个控件一张：折射会把边缘附近的背景**位移**进来，
+        // 采样点会落到控件轮廓之外。底图只有控件那么大时，那些采样点会被 CLAMP 成
+        // 边缘像素，屏幕上是一圈拉长的涂抹而不是真实背景。区域必须比控件大。
+        //
+        // 页面若用自己的 backdrop 覆盖了 LocalControlBackdrop（例如成绩页顶栏的
+        // `combined(壁纸, 顶栏玻璃层)`），那一处就必须自己再建一个区域 ——
+        // 底图要复现的是**那个控件实际采样的东西**，不是这一层。
+        val appLensDensity = LocalDensity.current
+        val appLensAnchor = if (wallpaperBackdrop != null) {
+            com.buct.course.ui.system.glass.rememberGlassLensRegion(
+                tag = "app",
+                // 壁纸不必写进 keys：rememberGlassLensAnchor 自己盯着
+                // AppearanceSettingsManager.style（见那边的注释）。写在这里的
+                // 后果是组合期读 style，整棵子树跟着订阅壁纸。
+                drawSource = { coords ->
+                    drawBackdropSource(wallpaperBackdrop, appLensDensity, coords)
+                }
+            )
+        } else {
+            null
+        }
+
+        // ## 第二张底图：模糊过的
+        //
+        // 上面那张是**锐利**的，因为按钮/圆钮/选择器在 33+ 上都是 `enableBlur = false`
+        // —— 它们的 lens 采的就是没模糊过的背景。
+        //
+        // 模态面板（弹窗、下拉菜单）不一样，33+ 的管线是 vibrancy → blur → lens，
+        // lens 采的是**已经模糊过的**像素。而模糊必须先烤进底图：屏幕上那层 blur
+        // 是加在 drawBackdrop 的图层上的，折射已经在它上游画完了，那层 blur 拿不到
+        // 任何输入。所以这里单独存一张 6dp 模糊版。
+        //
+        // 半径取 Modal 档的 6dp。弹窗与下拉菜单读的是同一个 `modal.blurDp`，
+        // 所以一张就够；将来若有别的档位要 blur→lens，它得自己再建一张 ——
+        // 差一档模糊，折射里的内容就和屏幕上的对不上。
+        val modalLensBlurPx = with(appLensDensity) { GlassRecipe.DialogBlurDp.dp.toPx() }
+        val modalLensAnchor = if (navBarBackdrop != null) {
+            com.buct.course.ui.system.glass.rememberGlassLensRegion(
+                tag = "app-modal",
+                keys = arrayOf(selectedTab, session.token, dialogHostState.currentDialog),
+                freshness = lensFreshness,
+                // 壁纸同上，由锚点自己盯
+                drawSource = { coords ->
+                    drawBlurred(modalLensBlurPx) {
+                        drawBackdropSource(navBarBackdrop, appLensDensity, coords)
+                    }
+                }
+            )
+        } else {
+            null
+        }
+
+        CompositionLocalProvider(
+            LocalAppBackdrop provides wallpaperBackdrop,
+            LocalControlBackdrop provides wallpaperBackdrop,
+            LocalModalBackdrop provides navBarBackdrop,
+            LocalAppOverlayBottomInset provides navBarContentInset,
+            LocalDialogHost provides dialogHostState,
+            LocalPageDataState provides pageData,
+            LocalFloatingNotice provides tokenExpiredNotice,
+            LocalNoticeAnchor provides noticeAnchorState,
+            com.buct.course.ui.system.glass.LocalPageGlassFreshness provides lensFreshness,
+            com.buct.course.ui.system.glass.LocalGlassLensAnchor provides appLensAnchor,
+            com.buct.course.ui.system.glass.LocalGlassLensModalAnchor provides modalLensAnchor
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().then(
+                    if (useGlass && navBarBackdrop != null) Modifier.layerBackdrop(navBarBackdrop)
+                    else Modifier
+                ).then(
+                    // 全局折射区域的取景框：全屏。控件的采样点会跑到自己轮廓之外，
+                    // 底图必须比控件大，否则边缘会被 CLAMP 成一圈涂抹。
+                    //
+                    // **两张底图都要挂**。只挂一张时，另一张的 coordinates 永远是
+                    // null，`ensureSource()` 直接返回 null，折射一个像素都不画；
+                    // 而调用方的 `onDrawBackdrop` 已经因为"锚点非 null"把正常的背景
+                    // 绘制让掉了 —— 屏幕上是**整块面板消失**，只剩文字和按钮浮在
+                    // 页面上。弹窗上实拍过一次，就是这个原因。
+                    Modifier
+                        .glassLensAnchor(appLensAnchor)
+                        .glassLensAnchor(modalLensAnchor)
+                )
+            ) {
+            if (useGlass && wallpaperBackdrop != null) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .layerBackdrop(wallpaperBackdrop)
+                ) {
+                    // 在绘制 lambda 内部再读一次 state：图片壁纸的位图是异步解码的，
+                    // 只读外面那份快照的话，位图到位时这一层不会重绘。
+                    drawWallpaperPattern(appWallpaper)
+                }
+            } else {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    // 无玻璃分支也画完整壁纸。这里原先只填 baseColor，于是关掉液态玻璃
+                    // （或在 API 31 以下）用户自己传的图片壁纸会整张消失，只剩一块纯色。
+                    // drawWallpaperPattern 是纯 Canvas 绘制，不依赖 backdrop。
+                    // 微纹理关掉：它唯一的作用是给折射提供可弯曲的高频内容，这条路径没有折射。
+                    drawWallpaperPattern(
+                        appWallpaper,
+                        microTexture = false
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .nestedScroll(navBarScrollConnection)
+                    ) {
+                        key(currentAccountStorageKey) {
+                            val savedPages = rememberSaveableStateHolder()
+                            com.buct.course.ui.theme.NavigationPages(navigationMotion,
+                                modifier = Modifier.fillMaxSize().graphicsLayer {
+                                    translationX = -6.dp.toPx() * dialogHostState.pageProgress
+                                    val entry = com.buct.course.ui.theme.StartupLogoAnimation.contentProgress
+                                    translationY = (1f - entry) * 16.dp.toPx()
+                                    alpha = (1f - 0.03f * dialogHostState.pageProgress) * entry
+                                }
+                            ) { page ->
+                              // 底栏可隐藏后，pages 里可能残留已不存在的下标（比如隐藏到只剩 3 个，
+                              // 但旧状态里还有 index 4），这里必须挡掉，否则会越界崩溃。
+                              val navItem = items.getOrNull(page)
+                              if (navItem != null) {
+                                  savedPages.SaveableStateProvider(navItem.route) {
+                                      when (navItem.page) {
+                                          StartupPage.Courses -> com.buct.course.ui.route.CourseSectionRoute()
+                                          StartupPage.Grab -> com.buct.course.ui.route.CourseSectionRoute()
+                                          StartupPage.Friends -> com.buct.course.ui.route.FriendsRoute()
+                                          StartupPage.Schedule -> com.buct.course.ui.route.ScheduleRoute()
+                                          StartupPage.Grades -> com.buct.course.ui.route.GradesRoute()
+                                          StartupPage.Settings -> com.buct.course.ui.route.SettingsRoute()
+                                      }
+                                  }
+                              }
+                            }
+                        }
+                    }
+                }
+
+            // AppBuildWatermarks()  // 水印已去掉
+            } // 关闭 navBarBackdrop 捕获层
+
+            // 底栏位于捕获层外，避免采样源包含底栏自身。
+            CompositionLocalProvider(com.buct.course.ui.theme.LocalNavigationMotion provides navigationMotion) {
+            CapsuleNavigationBar(
+                items = items,
+                selectedTab = safeSelectedTab,
+                onTabSelect = { targetTab ->
+                    if (targetTab != selectedTab) {
+                        selectedTab = targetTab
+                    }
+                },
+                minimized = navBarMinimized,
+                onExpandRequest = { navBarMinimized = false },
+                backdrop = navBarBackdrop,
+                lensFreshness = lensFreshness,
+                modifier = Modifier.align(Alignment.BottomCenter).graphicsLayer {
+                    val entry = ((com.buct.course.ui.theme.StartupLogoAnimation.contentProgress - 0.15f) / 0.85f).coerceIn(0f, 1f)
+                    alpha = entry
+                    translationY = (1f - entry) * 12.dp.toPx()
+                }
+            )
+            }
+
+            // 全局玻璃 Toast：悬浮在底栏上方
+            GlassToastHost(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = navBarContentInset + if (items.getOrNull(safeSelectedTab)?.page == StartupPage.Courses)
+                        com.buct.course.ui.system.TaskControlsReservedHeight + 12.dp else 12.dp)
+            )
+
+            DialogHost(
+                state = dialogHostState,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // 短信二次验证（「更新登录状态」触发）：全局挂载，任何页面发起都能就地验证
+            com.buct.course.ui.system.SecondaryVerificationHost()
+
+            // 底部导航设置弹窗放在主界面层级：调整顺序会让设置页换下标重建，
+            // 弹窗留在页面里就会每点一下关一次。
+            if (com.buct.course.ui.screen.BottomNavSettingsDialogState.visible) {
+                com.buct.course.ui.screen.BottomNavSettingsDialog(
+                    onDismiss = { com.buct.course.ui.screen.BottomNavSettingsDialogState.visible = false }
+                )
+            }
+
+
+            if (sessionNotice.token == session.token && sessionNotice.visible && isTokenExpired) {
+                key(session.token) {
+                    com.buct.course.ui.system.SessionExpiryPrompt(
+                        hasCachedContent = pageData.hasCachedContent,
+                        onLater = { noticeModel.notices.dismiss(session.token) },
+                        onLogin = {
+                            if (sessionStore.isCurrent(session.token) && sessionStore.state.value.expired) beginRelogin()
+                        }
+                    )
+                }
+            }
+
+            // 悬浮玻璃通知：叠加在正文之上，落点由顶栏上报的底边决定，不压顶栏操作
+            FloatingNoticeHost(modifier = Modifier.fillMaxSize())
+
+            // debug 平铺水印：必须是这一层——所有 backdrop 捕获层之外、所有内容之上。
+            // 盖在最上层对防倒卖只有好处（更难去掉），同时保证它不会被任何玻璃采样到。
+            if (showPiracyTiles) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .debugPiracyWatermark(true)
+                )
+            }
+
+            if (!session.expired && showStarDialog) {
+                val dialogTitle = when (dismissCount) {
+                    0 -> "在 GitHub 上支持这个项目"
+                    1 -> "一个 Star，就是最好的反馈"
+                    else -> "最后一次邀请"
+                }
+
+                val dialogText = when (dismissCount) {
+                    0 -> "感谢使用北化课表。\n\n如果它帮到了你，欢迎去 GitHub 仓库点一个 Star，支持项目继续维护。"
+                    1 -> "我们仍在持续优化体验。\n\n如果这个应用对你有用，花几秒钟给仓库点个 Star，就是对作者最好的支持。"
+                    else -> "这是最后一次提示。\n\n如果你愿意，欢迎去 GitHub 留下一个 Star；无论如何，都感谢你的使用。"
+                }
+
+                // 走 DialogHost portal（同窗口渲染），玻璃采样与按钮显示才正确
+                SystemDialog(
+                    onDismissRequest = {}, // 点击外部或按返回键不响应，防止误触
+                    title = {
+                        Text(
+                            text = dialogTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    dismissButton = {
+                        SystemSecondaryButton(
+                            text = "暂不",
+                            onClick = {
+                                showStarDialog = false
+                                prefs.edit().putInt("star_dismiss_count", dismissCount + 1).apply()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        SystemPrimaryButton(
+                            text = "去点 Star",
+                            onClick = {
+                                showStarDialog = false
+                                prefs.edit().putBoolean("has_starred", true).apply()
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/znjhahaha/zhengfang-apk.git")).apply {
+                                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "无法打开浏览器", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                ) {
+                    Text(
+                        text = dialogText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.AppBuildWatermarks() {
+    Text(
+        text = "开源版 · 请勿商用",
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(end = 12.dp, bottom = 8.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Medium
+    )
+    // debug 的平铺水印不在这里画：这一层仍然在 navBarBackdrop 捕获层内部，
+    // 底栏与弹窗会把它采样进去。它画在外层 Box 的最后一个孩子里，见那处注释。
+}
+
+/** 平铺水印避开底栏区域的底部内缩。原先由外层 Box 的 bottom padding 承担。 */
+private val PiracyWatermarkBottomInset = 88.dp
+
+/**
+ * debug 防倒卖水印缓存为 Picture；每次重绘只回放一次绘制记录。
+ *
+ * ## 它为什么绝对不能进 backdrop 捕获层
+ *
+ * 这 35 段 −28° 的红色斜排文字是一张**高对比标靶**。它曾经挂在壁纸 Canvas 的
+ * `.layerBackdrop(wallpaperBackdrop)` 之后，于是落在被采样的图层里面：
+ * 玻璃一折射它，笔画立刻弯得清清楚楚——**debug 包因此永远显得折射正常**。
+ * 而 release 不画它，玻璃只能去折射「底色 + 几个大半径径向渐变」那种极低频的壁纸，
+ * 位移一片均匀颜色采回来还是同一个颜色，于是全 App 看起来只剩一层扁平磨砂。
+ *
+ * 「debug 正常 / release 不正常」这个现象的全部来源就是这一层，两个包的玻璃管线完全一致。
+ * 现在它画在所有捕获层之外、所有内容之上，debug 与 release 的观感因此等价——
+ * 在 debug 包上看到的就是用户装 release 会看到的。
+ *
+ * 折射的验收标靶改由壁纸自己的微纹理承担（见 `WallpaperRenderer.drawWallpaperMicroTexture`），
+ * 那一层两个构建都有。
+ */
+private fun Modifier.debugPiracyWatermark(enabled: Boolean): Modifier {
+    if (!enabled) return this
+    return drawWithCache {
+        val picture = Picture()
+        val recordingCanvas = picture.beginRecording(
+            size.width.roundToInt().coerceAtLeast(1),
+            size.height.roundToInt().coerceAtLeast(1)
+        )
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 54f
+            color = android.graphics.Color.argb(64, 199, 58, 47)
+            textAlign = Paint.Align.CENTER
+        }
+        val centerX = size.width / 2f
+        val centerY = (size.height - PiracyWatermarkBottomInset.toPx()) / 2f
+        recordingCanvas.save()
+        recordingCanvas.rotate(-28f, centerX, centerY)
+        for (i in -2..2) {
+            for (j in -3..3) {
+                recordingCanvas.drawText(
+                    "开源版 / 严禁倒卖",
+                    centerX + (i * 560f),
+                    centerY + (j * 620f),
+                    paint
+                )
+            }
+        }
+        recordingCanvas.restore()
+        picture.endRecording()
+
+        onDrawWithContent {
+            drawContent()
+            drawContext.canvas.nativeCanvas.drawPicture(picture)
+        }
+    }
+}
+

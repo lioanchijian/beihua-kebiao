@@ -109,13 +109,13 @@
             android:name=".receiver.GrabAlarmReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.tyust.course.action.SCHEDULED_GRAB" />
+                <action android:name="com.buct.course.action.SCHEDULED_GRAB" />
             </intent-filter>
         </receiver>
 
         <!-- 妗岄潰璇捐〃灏忕粍浠?-->
         <receiver
-            android:name=".widget.ScheduleWidget"
+            android:name="com.tyust.course.widget.ScheduleWidget"
             android:exported="true"
             android:label="课表小组件">
             <intent-filter>
@@ -134,7 +134,7 @@
 
         <!-- 浠婃棩璇捐〃灏忕粍浠?-->
         <receiver
-            android:name=".widget.ScheduleDayWidget"
+            android:name="com.tyust.course.widget.ScheduleDayWidget"
             android:exported="true"
             android:label="今日课表小组件">
             <intent-filter>
