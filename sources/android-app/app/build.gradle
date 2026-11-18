@@ -90,7 +90,17 @@ android {
     }
 
     signingConfigs {
+        // 补 v1/JAR 签名：部分国产 ROM（vivo 等）从浏览器安装时只认 v1，
+        // 只带 v2 会提示「安装包缺乏开发者证书 / 软件包似乎无效」。
+        debug {
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
         release {
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
             if (hasReleaseSigning) {
                 storeFile releaseKeystoreFile
                 storePassword releaseStorePassword

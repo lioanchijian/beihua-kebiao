@@ -249,6 +249,7 @@ class UpdateState(
         
         updateManager.downloadApk(
             downloadUrl = info.downloadUrl,
+            expectedSha256 = info.sha256,
             onProgress = { progress ->
                 setDownloadProgress(progress)
             },
@@ -257,6 +258,9 @@ class UpdateState(
                 if (file != null && file.exists()) {
                     updateManager.installApk(file)
                     setShowDialog(false)
+                } else {
+                    // 下载失败或校验没通过（哈希/签名不对），必须明确告诉用户，不能静默
+                    updateManager.notifyUser("安装包校验未通过，已取消本次更新，请稍后重试")
                 }
             }
         )

@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.buct.course.network.FeedbackApi
 import com.buct.course.network.FriendApi
 import com.buct.course.network.FriendListData
 import com.buct.course.network.FriendSummary
@@ -87,6 +88,9 @@ fun FriendsScreen(
     var busy by remember { mutableStateOf(false) }
     var schedules by remember { mutableStateOf(FriendScheduleStore.list(context)) }
     var pendingDelete by remember { mutableStateOf<FriendScheduleStore.Entry?>(null) }
+    var showNicknameDialog by remember { mutableStateOf(false) }
+    var nicknameDraft by remember { mutableStateOf("") }
+    var savingNickname by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
         booting = data == null
@@ -185,18 +189,32 @@ fun FriendsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(
-                            text = "复制",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clickable {
-                                    clipboard.setText(AnnotatedString(me.displayId))
-                                    GlassToaster.show("短号已复制")
-                                }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "改昵称",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable {
+                                        nicknameDraft = me.nickname
+                                        showNicknameDialog = true
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                            )
+                            Text(
+                                text = "复制",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable {
+                                        clipboard.setText(AnnotatedString(me.displayId))
+                                        GlassToaster.show("短号已复制")
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -340,6 +358,67 @@ fun FriendsScreen(
                         }
                     )
                 }
+            }
+        }
+    }
+
+    if (showNicknameDialog) {
+        com.buct.course.ui.system.SystemDialog(
+            onDismissRequest = { if (!savingNickname) showNicknameDialog = false },
+            title = {
+                Text(
+                    text = "修改昵称",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                SystemPrimaryButton(
+                    text = if (savingNickname) "正在保存…" else "保存",
+                    onClick = {
+                        if (savingNickname) return@SystemPrimaryButton
+                        val name = nicknameDraft.trim()
+                        if (name.length < 2) {
+                            GlassToaster.show("昵称需 2-12 个字")
+                            return@SystemPrimaryButton
+                        }
+                        savingNickname = true
+                        scope.launch {
+                            val err = FeedbackApi.setNickname(context, name)
+                            savingNickname = false
+                            if (err == null) {
+                                showNicknameDialog = false
+                                GlassToaster.show("昵称已更新")
+                                refresh()
+                            } else {
+                                GlassToaster.show(err)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            dismissButton = {
+                com.buct.course.ui.system.SystemSecondaryButton(
+                    text = "取消",
+                    onClick = { showNicknameDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "好友看到的就是这个昵称，改完立刻生效。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                GlassTextField(
+                    value = nicknameDraft,
+                    onValueChange = { if (it.length <= 12) nicknameDraft = it },
+                    placeholder = "2-12 个字",
+                    singleLine = true
+                )
             }
         }
     }

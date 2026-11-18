@@ -30,11 +30,11 @@ class UpdateManager(private val context: Context) {
         private const val TAG = "UpdateManager"
         
         // 更新清单：域名优先，IP 作为备用（新旧服务器都保留）
+        // 只保留 HTTPS 源：明文 HTTP 会被中间人替换成恶意 version.json，
+        // 一旦配合自动下载安装就是远程代码执行。IP 直连源已移除。
         private val VERSION_URLS = listOf(
             "https://buctkb.cn/version.json",
-            "https://www.buctkb.cn/version.json",
-            "http://47.243.237.7/version.json",
-            "http://39.107.87.208/version.json"
+            "https://www.buctkb.cn/version.json"
         )
         
         // 下载文件名
@@ -66,7 +66,8 @@ class UpdateManager(private val context: Context) {
         val versionName: String,
         val releaseNotes: String,
         val downloadUrl: String,
-        val forceUpdate: Boolean
+        val forceUpdate: Boolean,
+        val sha256: String = ""
     )
     
     /**
@@ -146,15 +147,8 @@ class UpdateManager(private val context: Context) {
                             val localVersionCode = getLocalVersionCode()
                             Log.d(TAG, "本地版本: $localVersionCode, 服务器版本: $serverVersionCode")
                             if (serverVersionCode > localVersionCode) {
-                                val useIpDownload = url.startsWith("http://47.243.237.7") ||
-                                    url.startsWith("http://39.107.87.208")
-                                val downloadUrl = if (useIpDownload) {
-                                    obj.optString("downloadUrlIp", "")
-                                        .ifBlank { obj.optString("downloadUrl", "") }
-                                } else {
-                                    obj.optString("downloadUrl", "")
-                                        .ifBlank { obj.optString("downloadUrlIp", "") }
-                                }
+                                // 只用 HTTPS 下载地址；downloadUrlIp 是明文 HTTP，已弃用
+                                val downloadUrl = obj.optString("downloadUrl", "")
                                 if (downloadUrl.isBlank()) {
                                     Log.e(TAG, "更新清单缺少 downloadUrl: $url")
                                     tryUrl(index + 1)
@@ -165,7 +159,8 @@ class UpdateManager(private val context: Context) {
                                     versionName = obj.optString("versionName", ""),
                                     releaseNotes = obj.optString("releaseNotes", ""),
                                     downloadUrl = downloadUrl,
-                                    forceUpdate = obj.optBoolean("forceUpdate", false)
+                                    forceUpdate = obj.optBoolean("forceUpdate", false),
+                                    sha256 = obj.optString("sha256", "")
                                 )
                                 mainHandler.post { callback(updateInfo); onFinished(true) }
                             } else {
@@ -187,6 +182,7 @@ class UpdateManager(private val context: Context) {
      */
     fun downloadApk(
         downloadUrl: String,
+        expectedSha256: String = "",
         onProgress: (Int) -> Unit,
         onComplete: (File?) -> Unit
     ) {
@@ -237,7 +233,9 @@ class UpdateManager(private val context: Context) {
                         when (status) {
                             DownloadManager.STATUS_SUCCESSFUL -> {
                                 downloading = false
-                                mainHandler.post { onComplete(apkFile) }
+                                // 校验通过才交给安装流程：哈希对不上或签名不是本应用，直接丢弃
+                                val ok = verifyDownloadedApk(apkFile, expectedSha256)
+                                mainHandler.post { onComplete(if (ok) apkFile else null) }
                             }
                             DownloadManager.STATUS_FAILED -> {
                                 downloading = false
@@ -255,6 +253,92 @@ class UpdateManager(private val context: Context) {
         }.start()
     }
     
+    /**
+     * 校验下载到的安装包。
+     *
+     * 双重校验，缺一不可：
+     * 1. 与 version.json 里的 sha256 比对——防止下载被替换/截断（老版本完全没校验）；
+     * 2. 签名证书必须和当前应用一致——防止有人塞一个同包名的其他签名包。
+     */
+    private fun verifyDownloadedApk(file: File, expectedSha256: String): Boolean {
+        if (!file.exists() || file.length() <= 0L) {
+            Log.e(TAG, "安装包不存在或为空")
+            return false
+        }
+        if (expectedSha256.isNotBlank()) {
+            val actual = runCatching { sha256Of(file) }.getOrNull()
+            if (actual == null || !actual.equals(expectedSha256, ignoreCase = true)) {
+                Log.e(TAG, "安装包哈希不匹配: expected=$expectedSha256 actual=$actual")
+                runCatching { file.delete() }
+                return false
+            }
+            Log.d(TAG, "安装包哈希校验通过")
+        } else {
+            Log.w(TAG, "更新清单没有 sha256，跳过哈希校验")
+        }
+        if (!signatureMatchesHostApp(file)) {
+            Log.e(TAG, "安装包签名与当前应用不一致，已丢弃")
+            runCatching { file.delete() }
+            return false
+        }
+        return true
+    }
+
+    private fun sha256Of(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 16)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun signatureMatchesHostApp(file: File): Boolean = runCatching {
+        val pm = context.packageManager
+        val archive = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageArchiveInfo(
+                file.absolutePath,
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageArchiveInfo(file.absolutePath, android.content.pm.PackageManager.GET_SIGNATURES)
+        } ?: return false
+
+        val self = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+        }
+
+        fun certOf(info: android.content.pm.PackageInfo): String? {
+            val bytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures?.firstOrNull()?.toByteArray()
+            } ?: return null
+            return java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+                .joinToString("") { "%02x".format(it) }
+        }
+
+        val a = certOf(archive)
+        val b = certOf(self)
+        a != null && b != null && a == b
+    }.getOrDefault(false)
+
+    /** 给用户一个可见提示（下载/校验失败的场景不能静默）。 */
+    fun notifyUser(message: String) {
+        runCatching {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
     /**
      * 安装APK
      */
