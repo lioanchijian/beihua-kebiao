@@ -18,6 +18,7 @@ import kotlin.coroutines.resumeWithException
 data class FriendSummary(
     val displayId: String,
     val nickname: String,
+    val remark: String,
     val unread: Int,
     val lastBody: String,
     val lastKind: String,
@@ -45,6 +46,7 @@ data class FriendMessage(
 data class FriendListData(
     val displayId: String,
     val nickname: String,
+    val enabled: Boolean,
     val unread: Int,
     val friends: List<FriendSummary>,
     val requests: List<FriendRequest>
@@ -52,9 +54,29 @@ data class FriendListData(
 
 data class FriendThreadData(
     val nickname: String,
+    val remark: String,
     val displayId: String,
     val messages: List<FriendMessage>,
     val unread: Int
+)
+
+data class FriendLookup(
+    val displayId: String,
+    val nickname: String,
+    val isFriend: Boolean,
+    val requestPending: Boolean,
+    val blocked: Boolean
+)
+
+data class FriendLookupResult(
+    val data: FriendLookup? = null,
+    val error: String? = null
+)
+
+data class BlockedFriend(
+    val displayId: String,
+    val nickname: String,
+    val createdAt: String
 )
 
 data class FriendActionResult(val error: String? = null, val status: String = "")
@@ -95,6 +117,7 @@ object FriendApi {
                 friends += FriendSummary(
                     displayId = o.optString("displayId"),
                     nickname = o.optString("nickname"),
+                    remark = o.optString("remark"),
                     unread = o.optInt("unread"),
                     lastBody = o.optString("lastBody"),
                     lastKind = o.optString("lastKind"),
@@ -117,6 +140,7 @@ object FriendApi {
         return FriendListData(
             displayId = me?.optString("displayId").orEmpty(),
             nickname = me?.optString("nickname").orEmpty(),
+            enabled = body.optBoolean("enabled", true),
             unread = body.optInt("unread"),
             friends = friends,
             requests = requests
@@ -167,6 +191,7 @@ object FriendApi {
         }
         return FriendThreadData(
             nickname = body.optString("nickname"),
+            remark = body.optString("remark"),
             displayId = body.optString("displayId"),
             messages = messages,
             unread = body.optInt("unread")
@@ -221,6 +246,83 @@ object FriendApi {
         val payload = JSONObject().put("token", token).put("displayId", displayId).toString()
         val body = post("/api/friend/remove", payload) ?: return "网络异常，请稍后重试"
         return if (body.optBoolean("ok")) null else body.optString("error").ifBlank { "删除失败" }
+    }
+
+    /** 短号预览：只查精确短号，不直接创建好友申请。 */
+    suspend fun lookup(context: Context, displayId: String): FriendLookupResult {
+        val token = token(context) ?: return FriendLookupResult(error = "请先重新进入好友页")
+        val body = get(
+            "/api/friend/lookup?token=${encode(token)}&displayId=${encode(displayId)}"
+        ) ?: return FriendLookupResult(error = "网络异常，请稍后重试")
+        if (!body.optBoolean("ok")) {
+            return FriendLookupResult(error = body.optString("error").ifBlank { "没找到这个短号" })
+        }
+        return FriendLookupResult(data = FriendLookup(
+            displayId = body.optString("displayId"),
+            nickname = body.optString("nickname"),
+            isFriend = body.optBoolean("isFriend"),
+            requestPending = body.optBoolean("requestPending"),
+            blocked = body.optBoolean("blocked")
+        ))
+    }
+
+    /** 设置“我看到的名字”；只影响自己的好友列表和会话标题。 */
+    suspend fun setRemark(context: Context, displayId: String, remark: String): FriendActionResult {
+        val token = token(context) ?: return FriendActionResult(error = "请先重新进入好友页")
+        val payload = JSONObject().put("token", token).put("displayId", displayId)
+            .put("remark", remark).toString()
+        val body = post("/api/friend/remark", payload)
+            ?: return FriendActionResult(error = "网络异常，请稍后重试")
+        if (body.optBoolean("ok")) {
+            return FriendActionResult(status = body.optString("remark"))
+        }
+        return FriendActionResult(error = body.optString("error").ifBlank { "备注保存失败" })
+    }
+
+    suspend fun report(
+        context: Context,
+        displayId: String,
+        messageId: Long,
+        reason: String,
+        detail: String
+    ): String? {
+        val token = token(context) ?: return "请先重新进入好友页"
+        val payload = JSONObject().put("token", token).put("displayId", displayId)
+            .put("messageId", messageId).put("reason", reason).put("detail", detail).toString()
+        val body = post("/api/friend/report", payload) ?: return "网络异常，请稍后重试"
+        return if (body.optBoolean("ok")) null else body.optString("error").ifBlank { "举报提交失败" }
+    }
+
+    suspend fun block(context: Context, displayId: String): String? {
+        val token = token(context) ?: return "请先重新进入好友页"
+        val payload = JSONObject().put("token", token).put("displayId", displayId).toString()
+        val body = post("/api/friend/block", payload) ?: return "网络异常，请稍后重试"
+        return if (body.optBoolean("ok")) null else body.optString("error").ifBlank { "拉黑失败" }
+    }
+
+    suspend fun unblock(context: Context, displayId: String): String? {
+        val token = token(context) ?: return "请先重新进入好友页"
+        val payload = JSONObject().put("token", token).put("displayId", displayId).toString()
+        val body = post("/api/friend/unblock", payload) ?: return "网络异常，请稍后重试"
+        return if (body.optBoolean("ok")) null else body.optString("error").ifBlank { "解除拉黑失败" }
+    }
+
+    suspend fun blocked(context: Context): List<BlockedFriend>? {
+        val token = token(context) ?: return null
+        val body = get("/api/friend/blocked?token=${encode(token)}") ?: return null
+        if (!body.optBoolean("ok")) return null
+        val result = ArrayList<BlockedFriend>()
+        body.optJSONArray("blocked")?.let { array ->
+            for (i in 0 until array.length()) {
+                val o = array.optJSONObject(i) ?: continue
+                result += BlockedFriend(
+                    displayId = o.optString("displayId"),
+                    nickname = o.optString("nickname"),
+                    createdAt = o.optString("createdAt")
+                )
+            }
+        }
+        return result
     }
 
     private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")

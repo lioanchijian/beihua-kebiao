@@ -190,6 +190,8 @@ fun SystemTopBar(
     collapseFraction: Float = 0f,
     navigationIcon: @Composable (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
+    titleMaxLines: Int = 2,
+    titleFontSize: Float = 28f,
     backdrop: Backdrop? = LocalAppBackdrop.current
 ) {
     val useGlass = backdrop != null && isBackdropSupported()
@@ -291,11 +293,11 @@ fun SystemTopBar(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        fontSize = lerpSp(28f, 17f, collapse),
+                        fontSize = lerpSp(titleFontSize, 17f, collapse),
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.sp,
                         color = titleColor,
-                        maxLines = if (collapse < 0.5f) 2 else 1,
+                        maxLines = if (titleMaxLines <= 1 || collapse >= 0.5f) 1 else titleMaxLines,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     if (!subtitle.isNullOrBlank()) {

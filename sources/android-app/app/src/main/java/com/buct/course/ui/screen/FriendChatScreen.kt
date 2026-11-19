@@ -1,5 +1,6 @@
 package com.buct.course.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,7 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +66,8 @@ import org.json.JSONObject
  */
 private const val CHAT_POLL_MS = 8_000L
 
+private val REPORT_REASONS = listOf("骚扰或辱骂", "垃圾广告", "诈骗或索要财物", "其他")
+
 /**
  * 好友会话页：文字 + 课表互传。
  *
@@ -81,12 +88,31 @@ fun FriendChatScreen(
     var messages by remember(displayId) {
         mutableStateOf(FriendChatStore.load(context, displayId))
     }
+    var displayName by remember(displayId) { mutableStateOf(nickname) }
+    var originalNickname by remember(displayId) { mutableStateOf(nickname) }
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var loading by remember(displayId) { mutableStateOf(messages.isEmpty()) }
     var lastId by remember(displayId) { mutableStateOf(messages.maxOfOrNull { it.id } ?: 0L) }
     var previewTitle by remember { mutableStateOf<String?>(null) }
     var previewJson by remember { mutableStateOf<String?>(null) }
+    var showMenu by remember { mutableStateOf(false) }
+    var showRemarkDialog by remember { mutableStateOf(false) }
+    var remarkDraft by remember { mutableStateOf("") }
+    var savingRemark by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var reportReason by remember { mutableStateOf("骚扰或辱骂") }
+    var reportDetail by remember { mutableStateOf("") }
+    var reporting by remember { mutableStateOf(false) }
+    var showBlockDialog by remember { mutableStateOf(false) }
+    var blocking by remember { mutableStateOf(false) }
+    // 系统返回键与顶栏返回箭头保持同一层级：先回好友列表，而不是退出整个 App。
+    // 菜单、弹窗或课表预览打开时让它们先处理返回，避免误退出当前会话。
+    BackHandler(
+        enabled = previewJson == null &&
+            !showMenu && !showRemarkDialog && !showReportDialog && !showBlockDialog,
+        onBack = onBack
+    )
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
 
     /** 增量拉取：只要 since_id 之后的新消息，并合并进本地缓存。 */
@@ -96,6 +122,8 @@ fun FriendChatScreen(
             loading = false
             return
         }
+        if (thread.nickname.isNotBlank()) originalNickname = thread.nickname
+        displayName = thread.remark.ifBlank { thread.nickname.ifBlank { displayName } }
         if (thread.messages.isNotEmpty()) {
             messages = FriendChatStore.merge(context, displayId, thread.messages)
             lastId = messages.maxOfOrNull { it.id } ?: lastId
@@ -131,12 +159,17 @@ fun FriendChatScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .imePadding()
     ) {
         SystemTopBar(
-            title = nickname.ifBlank { "好友" },
-            subtitle = displayId,
+            title = displayName.ifBlank { "好友" },
+            subtitle = if (displayName != originalNickname && originalNickname.isNotBlank()) {
+                "$originalNickname · $displayId"
+            } else {
+                displayId
+            },
+            titleMaxLines = 1,
+            titleFontSize = 24f,
             navigationIcon = {
                 SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", onBack)
             },
@@ -170,6 +203,42 @@ fun FriendChatScreen(
                     },
                     tint = MaterialTheme.colorScheme.primary
                 )
+                SystemIconButton(
+                    icon = Icons.Outlined.Edit,
+                    contentDescription = "设置备注",
+                    onClick = {
+                        remarkDraft = if (displayName != originalNickname) displayName else ""
+                        showRemarkDialog = true
+                    }
+                )
+                Box {
+                    SystemIconButton(
+                        icon = Icons.Outlined.MoreVert,
+                        contentDescription = "更多",
+                        onClick = { showMenu = true }
+                    )
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("举报该用户") },
+                            onClick = {
+                                showMenu = false
+                                reportReason = "骚扰或辱骂"
+                                reportDetail = ""
+                                showReportDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("拉黑并删除好友") },
+                            onClick = {
+                                showMenu = false
+                                showBlockDialog = true
+                            }
+                        )
+                    }
+                }
             }
         )
 
@@ -208,7 +277,7 @@ fun FriendChatScreen(
                                 FriendScheduleStore.save(
                                     context = context,
                                     displayId = displayId,
-                                    ownerName = payload.optString("ownerName").ifBlank { nickname },
+                                    ownerName = payload.optString("ownerName").ifBlank { originalNickname },
                                     ownerStudentId = payload.optString("ownerStudentId"),
                                     school = payload.optString("school"),
                                     term = payload.optString("term"),
@@ -271,6 +340,188 @@ fun FriendChatScreen(
                     else MaterialTheme.colorScheme.primary
                 )
             }
+        }
+    }
+
+    if (showRemarkDialog) {
+        com.buct.course.ui.system.SystemDialog(
+            onDismissRequest = { if (!savingRemark) showRemarkDialog = false },
+            title = {
+                Text(
+                    text = "设置备注",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                com.buct.course.ui.system.SystemPrimaryButton(
+                    text = if (savingRemark) "正在保存…" else "保存",
+                    onClick = {
+                        if (savingRemark) return@SystemPrimaryButton
+                        val remark = remarkDraft.trim()
+                        if (remark.length > 12) {
+                            GlassToaster.show("备注最多 12 个字")
+                            return@SystemPrimaryButton
+                        }
+                        savingRemark = true
+                        scope.launch {
+                            val result = FriendApi.setRemark(context, displayId, remark)
+                            savingRemark = false
+                            if (result.error != null) {
+                                GlassToaster.show(result.error)
+                            } else {
+                                displayName = result.status.ifBlank { originalNickname }
+                                showRemarkDialog = false
+                                GlassToaster.show(if (remark.isBlank()) "已清除备注" else "备注已保存")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            dismissButton = {
+                SystemSecondaryButton(
+                    text = "取消",
+                    onClick = { if (!savingRemark) showRemarkDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "只改你看到的名字，对方不会收到提醒；留空可恢复对方昵称。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                GlassTextField(
+                    value = remarkDraft,
+                    onValueChange = { if (it.length <= 12) remarkDraft = it },
+                    placeholder = "例如：同班同学 / 学长",
+                    singleLine = true
+                )
+            }
+        }
+    }
+
+    if (showReportDialog) {
+        com.buct.course.ui.system.SystemDialog(
+            onDismissRequest = { if (!reporting) showReportDialog = false },
+            title = {
+                Text(
+                    text = "举报该用户",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                com.buct.course.ui.system.SystemPrimaryButton(
+                    text = if (reporting) "正在提交…" else "提交举报",
+                    onClick = {
+                        if (reporting) return@SystemPrimaryButton
+                        reporting = true
+                        scope.launch {
+                            val err = FriendApi.report(
+                                context = context,
+                                displayId = displayId,
+                                messageId = messages.lastOrNull()?.id ?: 0L,
+                                reason = reportReason,
+                                detail = reportDetail.trim()
+                            )
+                            reporting = false
+                            if (err == null) {
+                                showReportDialog = false
+                                GlassToaster.show("举报已提交，管理员会尽快处理")
+                            } else {
+                                GlassToaster.show(err)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            dismissButton = {
+                SystemSecondaryButton(
+                    text = "取消",
+                    onClick = { if (!reporting) showReportDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "请选择原因，可补充说明（选填）。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                REPORT_REASONS.forEach { reason ->
+                    Text(
+                        text = (if (reportReason == reason) "● " else "○ ") + reason,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (reportReason == reason) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { reportReason = reason }
+                            .padding(vertical = 5.dp)
+                    )
+                }
+                GlassTextField(
+                    value = reportDetail,
+                    onValueChange = { if (it.length <= 300) reportDetail = it },
+                    placeholder = "补充说明（选填）",
+                    singleLine = false
+                )
+            }
+        }
+    }
+
+    if (showBlockDialog) {
+        com.buct.course.ui.system.SystemDialog(
+            onDismissRequest = { if (!blocking) showBlockDialog = false },
+            title = {
+                Text(
+                    text = "拉黑「${displayName.ifBlank { "好友" }}」？",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                com.buct.course.ui.system.SystemPrimaryButton(
+                    text = if (blocking) "正在处理…" else "拉黑",
+                    onClick = {
+                        if (blocking) return@SystemPrimaryButton
+                        blocking = true
+                        scope.launch {
+                            val err = FriendApi.block(context, displayId)
+                            blocking = false
+                            if (err == null) {
+                                showBlockDialog = false
+                                GlassToaster.show("已拉黑并删除好友")
+                                onBack()
+                            } else {
+                                GlassToaster.show(err)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            dismissButton = {
+                SystemSecondaryButton(
+                    text = "取消",
+                    onClick = { if (!blocking) showBlockDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        ) {
+            Text(
+                text = "拉黑后双方都不能再发消息，好友关系会被删除；可在好友页「黑名单」里解除。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

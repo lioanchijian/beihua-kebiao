@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import com.buct.course.R
 import com.buct.course.manager.AppThemeCoordinator
 import com.buct.course.ui.system.InsetGroupedSection
+import com.buct.course.ui.system.PagePadding
+import com.buct.course.ui.system.SectionSpacing
 import com.buct.course.ui.system.SystemIconButton
 import com.buct.course.ui.system.SystemTopBar
 import com.buct.course.social.FriendScheduleStore
@@ -198,7 +200,6 @@ private fun WidgetConfigPage(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
             .imePadding()
             .navigationBarsPadding()
     ) {
@@ -217,9 +218,9 @@ private fun WidgetConfigPage(
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = PagePadding)
                     .padding(top = 4.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                verticalArrangement = Arrangement.spacedBy(SectionSpacing)
             ) {
                 // 标题输入
                 InsetGroupedSection(

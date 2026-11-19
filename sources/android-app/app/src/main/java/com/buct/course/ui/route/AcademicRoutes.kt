@@ -143,7 +143,7 @@ fun AcademicCourseListRoute(school: SchoolConfig) {
 
     Scaffold(containerColor = Color.Transparent, topBar = {
         Column(Modifier.fillMaxWidth().moduleEntrance(0).reportNoticeAnchor()) {
-            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp).height(64.dp),
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = PagePadding).height(64.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 SystemSegmentedControl(options = listOf("可选", "已选"), selectedIndex = tab,
                     onSelect = { tab = it }, modifier = Modifier.weight(1f), height = 48.dp)
@@ -167,7 +167,7 @@ fun AcademicCourseListRoute(school: SchoolConfig) {
                 )
                 AnimatedVisibility(searchVisible, enter = ModuleMotion.expand(rememberGlassAccessibilityMode().reduceMotion),
                     exit = ModuleMotion.collapse(rememberGlassAccessibilityMode().reduceMotion)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = PagePadding, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlassTextField(value = query, onValueChange = { query = it }, placeholder = "搜索课程、教师或课程号",
                             leadingIcon = Icons.Default.Search, modifier = Modifier.weight(1f))
                         SystemIconButton(onClick = { query = ""; searchVisible = false }, icon = Icons.Default.Close, contentDescription = "关闭搜索")
@@ -178,7 +178,7 @@ fun AcademicCourseListRoute(school: SchoolConfig) {
                     selectedIndex = categories.indexOfFirst { it.id == selectedCategory } + 1,
                     onSelect = { index -> selectedCategory = if (index == 0) "" else categories[index - 1].id },
                     label = if (school.academicSystem == AcademicSystem.ZF_OLD.id) "类别" else "轮次",
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = PagePadding, vertical = 8.dp),
                     maxLabelLines = if (school.academicSystem == AcademicSystem.ZF_OLD.id) 1 else 2
                 )
             }

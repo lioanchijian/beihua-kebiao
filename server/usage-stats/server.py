@@ -28,7 +28,44 @@ def init():
       sender TEXT NOT NULL CHECK(sender IN ('user','admin')), body TEXT NOT NULL,
       created_at TEXT NOT NULL, read_by_user INTEGER DEFAULT 0, read_by_admin INTEGER DEFAULT 0);
     CREATE INDEX IF NOT EXISTS idx_fb_thread ON fb_messages(install_id, id);
+    CREATE TABLE IF NOT EXISTS friends(
+      owner TEXT NOT NULL, friend TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(owner, friend));
+    CREATE TABLE IF NOT EXISTS friend_requests(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, from_id TEXT NOT NULL, to_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL,
+      UNIQUE(from_id, to_id));
+    CREATE TABLE IF NOT EXISTS dm_messages(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, from_id TEXT NOT NULL, to_id TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'text', body TEXT NOT NULL, payload TEXT,
+      created_at TEXT NOT NULL, read_by_to INTEGER DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS idx_dm_pair ON dm_messages(from_id, to_id, id);
+    CREATE TABLE IF NOT EXISTS friend_blocks(
+      owner TEXT NOT NULL, blocked TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(owner, blocked));
+    CREATE TABLE IF NOT EXISTS friend_reports(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, reporter TEXT NOT NULL, target TEXT NOT NULL,
+      message_id INTEGER, reason TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_friend_reports_status ON friend_reports(status, id);
+    CREATE TABLE IF NOT EXISTS friend_lookup_log(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_lookup_owner ON friend_lookup_log(owner, created_at);
+    CREATE TABLE IF NOT EXISTS server_config(
+      key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """); c.commit()
+    # 旧库平滑升级：CREATE TABLE IF NOT EXISTS 不会给已有表补列。
+    for table, column, ddl in (
+        ("friends", "remark", "TEXT NOT NULL DEFAULT ''"),
+        ("fb_users", "admin_note", "TEXT NOT NULL DEFAULT ''"),
+    ):
+        try:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+            c.commit()
+        except sqlite3.DatabaseError:
+            c.rollback()
+    c.execute("INSERT OR IGNORE INTO server_config(key, value) VALUES('social_enabled', '1')")
+    c.commit()
     # 昵称唯一（尽力而为：历史库若已有重名则跳过，不影响启动）
     try:
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_fb_nickname ON fb_users(nickname)")
@@ -160,6 +197,193 @@ def fb_register(c, install_id, version, platform, tries=12):
     raise RuntimeError("短号分配冲突，请重试")
 
 
+# ---------------- 好友 / 课表互传 ----------------
+FR_MAX_TEXT = 1000
+FR_MAX_PAYLOAD = 262144      # 课表 JSON 上限 256KB
+FR_MIN_INTERVAL = 2          # 秒
+FR_RATE_PER_MIN = 20         # 单账号每分钟消息上限
+FR_RATE_PER_DAY = 200        # 单账号每天消息上限
+FR_LOOKUP_PER_MIN = 20       # 短号预览每分钟上限，防枚举
+FR_MAX_REMARK = 12
+FR_MAX_REPORT_DETAIL = 300
+FR_KINDS = ("text", "schedule")
+SCHEDULE_KIND_LABEL = "课表"
+FR_REPORT_REASONS = ("骚扰或辱骂", "垃圾广告", "诈骗或索要财物", "其他")
+
+
+def fr_config_get(c, key, default=""):
+    row = c.execute("SELECT value FROM server_config WHERE key=?", (key,)).fetchone()
+    return row[0] if row else default
+
+
+def fr_config_set(c, key, value):
+    c.execute(
+        "INSERT INTO server_config(key, value) VALUES(?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, str(value)))
+    c.commit()
+
+
+def fr_social_enabled(c):
+    return fr_config_get(c, "social_enabled", "1") == "1"
+
+
+def fr_is_banned(user):
+    return bool(user and int(user["banned"] or 0))
+
+
+def fr_blocked(c, a, b):
+    """任一方拉黑，双方都不能再发消息或重新添加。"""
+    return c.execute(
+        "SELECT 1 FROM friend_blocks WHERE (owner=? AND blocked=?) OR (owner=? AND blocked=?)",
+        (a, b, b, a)).fetchone() is not None
+
+
+def fr_rate_limit_message(c, sender, now):
+    """按 UTC 时间窗口统计发送量；返回错误文案或 None。"""
+    try:
+        dt = datetime.datetime.fromisoformat(now)
+    except Exception:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+    minute_start = (dt - datetime.timedelta(minutes=1)).isoformat(timespec="seconds")
+    day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
+    minute_count = c.execute(
+        "SELECT COUNT(*) FROM dm_messages WHERE from_id=? AND created_at>=?",
+        (sender, minute_start)).fetchone()[0]
+    if int(minute_count or 0) >= FR_RATE_PER_MIN:
+        return "一分钟内发太多了，歇一会儿再发"
+    day_count = c.execute(
+        "SELECT COUNT(*) FROM dm_messages WHERE from_id=? AND created_at>=?",
+        (sender, day_start)).fetchone()[0]
+    if int(day_count or 0) >= FR_RATE_PER_DAY:
+        return "今天发得太多了，明天再聊吧"
+    return None
+
+
+def fr_lookup_allowed(c, owner, now):
+    """短号预览限频；超过上限直接拒绝，返回错误文案或 None。"""
+    try:
+        dt = datetime.datetime.fromisoformat(now)
+    except Exception:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+    cutoff = (dt - datetime.timedelta(minutes=1)).isoformat(timespec="seconds")
+    # 顺手清掉一天前的日志，表不会无限增长
+    c.execute("DELETE FROM friend_lookup_log WHERE created_at<?",
+              ((dt - datetime.timedelta(days=1)).isoformat(timespec="seconds"),))
+    count = c.execute(
+        "SELECT COUNT(*) FROM friend_lookup_log WHERE owner=? AND created_at>=?",
+        (owner, cutoff)).fetchone()[0]
+    if int(count or 0) >= FR_LOOKUP_PER_MIN:
+        return "短号查得太频繁了，过一分钟再试"
+    c.execute("INSERT INTO friend_lookup_log(owner, created_at) VALUES(?,?)", (owner, now))
+    c.commit()
+    return None
+
+
+def fr_remark_of(c, owner, friend):
+    row = c.execute("SELECT remark FROM friends WHERE owner=? AND friend=?", (owner, friend)).fetchone()
+    return (row[0] or "") if row else ""
+
+
+def fr_target_or_error(c, me, data):
+    """查找目标并统一处理封禁/拉黑；返回 (target, error_json) 之一。"""
+    target = fr_by_display(c, data.get("displayId"))
+    if not target:
+        return None, (404, {"ok": False, "error": "没找到这个短号，确认一下是否输错"})
+    if target["install_id"] == me["install_id"]:
+        return None, (400, {"ok": False, "error": "不能对自己操作呀"})
+    if fr_is_banned(target):
+        return None, (404, {"ok": False, "error": "没找到这个短号，确认一下是否输错"})
+    return target, None
+
+
+def fr_require_social(c):
+    return None if fr_social_enabled(c) else (403, {"ok": False, "error": "好友功能暂时关闭，请稍后再试"})
+
+
+def fr_by_display(c, display_id):
+    did = str(display_id or "").strip().upper()
+    if not did:
+        return None
+    return c.execute("SELECT * FROM fb_users WHERE display_id=?", (did,)).fetchone()
+
+
+def fr_are_friends(c, a, b):
+    return c.execute("SELECT 1 FROM friends WHERE owner=? AND friend=?", (a, b)).fetchone() is not None
+
+
+def fr_link(c, a, b, now):
+    """双向写入好友关系（互为好友），并清掉两边历史请求。"""
+    c.execute("INSERT OR IGNORE INTO friends(owner, friend, created_at) VALUES(?,?,?)", (a, b, now))
+    c.execute("INSERT OR IGNORE INTO friends(owner, friend, created_at) VALUES(?,?,?)", (b, a, now))
+    c.execute("UPDATE friend_requests SET status='accepted' WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)", (a, b, b, a))
+    c.commit()
+
+
+def fr_unlink(c, a, b):
+    c.execute("DELETE FROM friends WHERE (owner=? AND friend=?) OR (owner=? AND friend=?)", (a, b, b, a))
+    c.commit()
+
+
+def fr_unread(c, owner, friend):
+    row = c.execute(
+        "SELECT COUNT(*) FROM dm_messages WHERE from_id=? AND to_id=? AND read_by_to=0",
+        (friend, owner)).fetchone()
+    return int(row[0] or 0)
+
+
+def fr_total_unread(c, owner):
+    row = c.execute("SELECT COUNT(*) FROM dm_messages WHERE to_id=? AND read_by_to=0", (owner,)).fetchone()
+    return int(row[0] or 0)
+
+
+def fr_pending_requests(c, owner):
+    rows = c.execute("""
+        SELECT r.id, u.display_id, u.nickname, r.created_at
+        FROM friend_requests r JOIN fb_users u ON u.install_id = r.from_id
+        WHERE r.to_id=? AND r.status='pending' ORDER BY r.id DESC LIMIT 50
+    """, (owner,)).fetchall()
+    return [{"id": r[0], "displayId": r[1], "nickname": r[2], "createdAt": r[3]} for r in rows]
+
+
+def fr_friend_rows(c, owner):
+    rows = c.execute("""
+        SELECT u.install_id, u.display_id, u.nickname, u.last_seen, f.remark,
+               (SELECT COUNT(*) FROM dm_messages m WHERE m.from_id=u.install_id AND m.to_id=? AND m.read_by_to=0) AS unread,
+               (SELECT body FROM dm_messages m
+                 WHERE (m.from_id=u.install_id AND m.to_id=?) OR (m.from_id=? AND m.to_id=u.install_id)
+                 ORDER BY m.id DESC LIMIT 1) AS last_body,
+               (SELECT kind FROM dm_messages m
+                 WHERE (m.from_id=u.install_id AND m.to_id=?) OR (m.from_id=? AND m.to_id=u.install_id)
+                 ORDER BY m.id DESC LIMIT 1) AS last_kind,
+               (SELECT created_at FROM dm_messages m
+                 WHERE (m.from_id=u.install_id AND m.to_id=?) OR (m.from_id=? AND m.to_id=u.install_id)
+                 ORDER BY m.id DESC LIMIT 1) AS last_at
+        FROM friends f JOIN fb_users u ON u.install_id = f.friend
+        WHERE f.owner=? ORDER BY COALESCE(last_at, f.created_at) DESC
+    """, (owner, owner, owner, owner, owner, owner, owner, owner)).fetchall()
+    return [{
+        "displayId": r[1], "nickname": r[2], "remark": r[4] or "",
+        "lastSeen": r[3] or "", "unread": int(r[5] or 0),
+        "lastBody": r[6] or "", "lastKind": r[7] or "", "lastAt": r[8] or "",
+    } for r in rows]
+
+
+def fr_thread(c, owner, friend, since_id=0, limit=300):
+    rows = c.execute("""
+        SELECT id, from_id, kind, body, payload, created_at
+        FROM dm_messages
+        WHERE ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?)) AND id>?
+        ORDER BY id LIMIT ?
+    """, (owner, friend, friend, owner, since_id, limit)).fetchall()
+    c.execute("UPDATE dm_messages SET read_by_to=1 WHERE from_id=? AND to_id=? AND read_by_to=0", (friend, owner))
+    c.commit()
+    return [{
+        "id": r[0], "fromMe": r[1] == owner, "kind": r[2],
+        "body": r[3], "payload": r[4] or "", "createdAt": r[5],
+    } for r in rows]
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args): pass
     def send_json(self, code, obj):
@@ -263,6 +487,298 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json(200, {"ok": True, "id": mid})
                 finally:
                     c.close()
+            if path == "/api/feedback/admin/note":
+                if not hmac.compare_digest(str(data.get("token", "")), TOKEN):
+                    return self.send_json(403, {"ok": False, "error": "forbidden"})
+                iid = str(data.get("install_id", ""))[:64]
+                note = str(data.get("note", "")).strip()[:200]
+                c = db()
+                try:
+                    if not c.execute("SELECT 1 FROM fb_users WHERE install_id=?", (iid,)).fetchone():
+                        return self.send_json(404, {"ok": False, "error": "no such user"})
+                    c.execute("UPDATE fb_users SET admin_note=? WHERE install_id=?", (note, iid)); c.commit()
+                    return self.send_json(200, {"ok": True, "adminNote": note})
+                finally:
+                    c.close()
+            if path == "/api/feedback/admin/ban":
+                if not hmac.compare_digest(str(data.get("token", "")), TOKEN):
+                    return self.send_json(403, {"ok": False, "error": "forbidden"})
+                iid = str(data.get("install_id", ""))[:64]
+                banned = 1 if data.get("banned") else 0
+                c = db()
+                try:
+                    if not c.execute("SELECT 1 FROM fb_users WHERE install_id=?", (iid,)).fetchone():
+                        return self.send_json(404, {"ok": False, "error": "no such user"})
+                    c.execute("UPDATE fb_users SET banned=? WHERE install_id=?", (banned, iid)); c.commit()
+                    return self.send_json(200, {"ok": True, "banned": banned})
+                finally:
+                    c.close()
+            if path == "/api/friend/admin/config":
+                if not hmac.compare_digest(str(data.get("token", "")), TOKEN):
+                    return self.send_json(403, {"ok": False, "error": "forbidden"})
+                enabled = "1" if data.get("enabled") else "0"
+                c = db()
+                try:
+                    fr_config_set(c, "social_enabled", enabled)
+                    return self.send_json(200, {"ok": True, "enabled": enabled == "1"})
+                finally:
+                    c.close()
+            if path == "/api/friend/admin/report-action":
+                if not hmac.compare_digest(str(data.get("token", "")), TOKEN):
+                    return self.send_json(403, {"ok": False, "error": "forbidden"})
+                try:
+                    rid = int(data.get("reportId", 0))
+                except Exception:
+                    rid = 0
+                action = str(data.get("action", "resolve"))
+                c = db()
+                try:
+                    report = c.execute("SELECT * FROM friend_reports WHERE id=?", (rid,)).fetchone()
+                    if not report:
+                        return self.send_json(404, {"ok": False, "error": "no such report"})
+                    if action == "ban":
+                        c.execute("UPDATE fb_users SET banned=1 WHERE install_id=?", (report["target"],))
+                        c.execute("UPDATE friend_reports SET status='banned' WHERE id=?", (rid,))
+                    else:
+                        c.execute("UPDATE friend_reports SET status='resolved' WHERE id=?", (rid,))
+                    c.commit()
+                    return self.send_json(200, {"ok": True, "status": "banned" if action == "ban" else "resolved"})
+                finally:
+                    c.close()
+            # ---------- 好友：加好友 / 通过请求 ----------
+            if path == "/api/friend/request":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效，请重进好友页"})
+                    if fr_is_banned(me):
+                        return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                    guard = fr_require_social(c)
+                    if guard:
+                        return self.send_json(*guard)
+                    target, err = fr_target_or_error(c, me, data)
+                    if err:
+                        return self.send_json(*err)
+                    if fr_blocked(c, me["install_id"], target["install_id"]):
+                        return self.send_json(403, {"ok": False, "error": "无法添加对方"})
+                    if fr_are_friends(c, me["install_id"], target["install_id"]):
+                        return self.send_json(200, {"ok": True, "status": "already",
+                                                    "nickname": target["nickname"]})
+                    reverse = c.execute(
+                        "SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status='pending'",
+                        (target["install_id"], me["install_id"])).fetchone()
+                    if reverse:
+                        fr_link(c, me["install_id"], target["install_id"], now)
+                        return self.send_json(200, {"ok": True, "status": "accepted",
+                                                    "nickname": target["nickname"]})
+                    exists = c.execute(
+                        "SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status='pending'",
+                        (me["install_id"], target["install_id"])).fetchone()
+                    if exists:
+                        return self.send_json(200, {"ok": True, "status": "pending",
+                                                    "nickname": target["nickname"]})
+                    c.execute(
+                        "INSERT OR REPLACE INTO friend_requests(from_id, to_id, status, created_at) VALUES(?,?,?,?)",
+                        (me["install_id"], target["install_id"], "pending", now))
+                    c.commit()
+                    return self.send_json(200, {"ok": True, "status": "pending",
+                                                "nickname": target["nickname"]})
+                finally:
+                    c.close()
+            if path == "/api/friend/respond":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    if fr_is_banned(me):
+                        return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                    guard = fr_require_social(c)
+                    if guard:
+                        return self.send_json(*guard)
+                    try:
+                        rid = int(data.get("requestId", 0))
+                    except Exception:
+                        rid = 0
+                    row = c.execute(
+                        "SELECT * FROM friend_requests WHERE id=? AND to_id=? AND status='pending'",
+                        (rid, me["install_id"])).fetchone()
+                    if not row:
+                        return self.send_json(404, {"ok": False, "error": "这条请求已经处理过了"})
+                    other = c.execute("SELECT * FROM fb_users WHERE install_id=?", (row["from_id"],)).fetchone()
+                    if not other or fr_is_banned(other):
+                        return self.send_json(404, {"ok": False, "error": "这条请求已经处理过了"})
+                    if fr_blocked(c, me["install_id"], other["install_id"]):
+                        return self.send_json(403, {"ok": False, "error": "无法添加对方"})
+                    if data.get("accept"):
+                        fr_link(c, row["from_id"], me["install_id"], now)
+                        other = c.execute("SELECT nickname, display_id FROM fb_users WHERE install_id=?",
+                                          (row["from_id"],)).fetchone()
+                        return self.send_json(200, {"ok": True, "status": "accepted",
+                                                    "nickname": other[0], "displayId": other[1]})
+                    c.execute("UPDATE friend_requests SET status='rejected' WHERE id=?", (rid,))
+                    c.commit()
+                    return self.send_json(200, {"ok": True, "status": "rejected"})
+                finally:
+                    c.close()
+            if path == "/api/friend/send":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    if fr_is_banned(me):
+                        return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                    guard = fr_require_social(c)
+                    if guard:
+                        return self.send_json(*guard)
+                    target = fr_by_display(c, data.get("displayId"))
+                    if not target:
+                        return self.send_json(404, {"ok": False, "error": "对方不存在"})
+                    if fr_is_banned(target):
+                        return self.send_json(403, {"ok": False, "error": "对方已被限制使用好友功能"})
+                    if fr_blocked(c, me["install_id"], target["install_id"]):
+                        return self.send_json(403, {"ok": False, "error": "你们之间已拉黑，无法发送"})
+                    if not fr_are_friends(c, me["install_id"], target["install_id"]):
+                        return self.send_json(403, {"ok": False, "error": "还不是好友"})
+                    kind = str(data.get("kind", "text"))
+                    if kind not in FR_KINDS:
+                        return self.send_json(400, {"ok": False, "error": "未知消息类型"})
+                    rate_error = fr_rate_limit_message(c, me["install_id"], now)
+                    if rate_error:
+                        return self.send_json(429, {"ok": False, "error": rate_error})
+                    body = str(data.get("body", ""))[:FR_MAX_TEXT]
+                    payload = data.get("payload")
+                    payload = json.dumps(payload, ensure_ascii=False) if payload is not None else ""
+                    if len(payload) > FR_MAX_PAYLOAD:
+                        return self.send_json(413, {"ok": False, "error": "课表太大了，换一个学期试试"})
+                    if kind == "text" and not body.strip():
+                        return self.send_json(400, {"ok": False, "error": "内容不能为空"})
+                    last = c.execute(
+                        "SELECT created_at FROM dm_messages WHERE from_id=? AND to_id=? ORDER BY id DESC LIMIT 1",
+                        (me["install_id"], target["install_id"])).fetchone()
+                    if last:
+                        try:
+                            prev = datetime.datetime.fromisoformat(last[0])
+                            if (datetime.datetime.now(datetime.timezone.utc) - prev).total_seconds() < FR_MIN_INTERVAL:
+                                return self.send_json(429, {"ok": False, "error": "发太快了，稍等一下"})
+                        except Exception:
+                            pass
+                    cur = c.execute(
+                        "INSERT INTO dm_messages(from_id, to_id, kind, body, payload, created_at) VALUES(?,?,?,?,?,?)",
+                        (me["install_id"], target["install_id"], kind, body.strip(), payload, now))
+                    c.commit()
+                    return self.send_json(200, {"ok": True, "id": cur.lastrowid})
+                finally:
+                    c.close()
+            if path == "/api/friend/remove":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    target = fr_by_display(c, data.get("displayId"))
+                    if not target:
+                        return self.send_json(404, {"ok": False, "error": "对方不存在"})
+                    fr_unlink(c, me["install_id"], target["install_id"])
+                    return self.send_json(200, {"ok": True})
+                finally:
+                    c.close()
+            if path == "/api/friend/remark":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    if fr_is_banned(me):
+                        return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                    target = fr_by_display(c, data.get("displayId"))
+                    if not target:
+                        return self.send_json(404, {"ok": False, "error": "对方不存在"})
+                    if not fr_are_friends(c, me["install_id"], target["install_id"]):
+                        return self.send_json(403, {"ok": False, "error": "还不是好友"})
+                    remark = str(data.get("remark", "")).strip()
+                    if len(remark) > FR_MAX_REMARK:
+                        return self.send_json(400, {"ok": False, "error": "备注最多 12 个字"})
+                    c.execute("UPDATE friends SET remark=? WHERE owner=? AND friend=?",
+                              (remark, me["install_id"], target["install_id"]))
+                    c.commit()
+                    return self.send_json(200, {"ok": True, "remark": remark})
+                finally:
+                    c.close()
+            if path == "/api/friend/report":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    if fr_is_banned(me):
+                        return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                    target, err = fr_target_or_error(c, me, data)
+                    if err:
+                        return self.send_json(*err)
+                    reason = str(data.get("reason", "")).strip()[:40]
+                    if reason not in FR_REPORT_REASONS:
+                        reason = "其他"
+                    detail = str(data.get("detail", "")).strip()[:FR_MAX_REPORT_DETAIL]
+                    try:
+                        mid = int(data.get("messageId", 0) or 0)
+                    except Exception:
+                        mid = 0
+                    if mid:
+                        ok_msg = c.execute("""
+                            SELECT 1 FROM dm_messages WHERE id=?
+                            AND ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?))
+                        """, (mid, me["install_id"], target["install_id"],
+                              target["install_id"], me["install_id"])).fetchone()
+                        if not ok_msg:
+                            mid = 0
+                    c.execute("""
+                        INSERT INTO friend_reports(reporter, target, message_id, reason, detail, created_at)
+                        VALUES(?,?,?,?,?,?)
+                    """, (me["install_id"], target["install_id"], mid or None,
+                          reason, detail, now))
+                    c.commit()
+                    return self.send_json(200, {"ok": True})
+                finally:
+                    c.close()
+            if path == "/api/friend/block":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    if fr_is_banned(me):
+                        return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                    target, err = fr_target_or_error(c, me, data)
+                    if err:
+                        return self.send_json(*err)
+                    c.execute("INSERT OR IGNORE INTO friend_blocks(owner, blocked, created_at) VALUES(?,?,?)",
+                              (me["install_id"], target["install_id"], now))
+                    c.execute("DELETE FROM friends WHERE (owner=? AND friend=?) OR (owner=? AND friend=?)",
+                              (me["install_id"], target["install_id"], target["install_id"], me["install_id"]))
+                    c.execute("DELETE FROM friend_requests WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)",
+                              (me["install_id"], target["install_id"], target["install_id"], me["install_id"]))
+                    c.commit()
+                    return self.send_json(200, {"ok": True})
+                finally:
+                    c.close()
+            if path == "/api/friend/unblock":
+                c = db()
+                try:
+                    me = fb_user_by_token(c, str(data.get("token", "")))
+                    if not me:
+                        return self.send_json(401, {"ok": False, "error": "token 无效"})
+                    target = fr_by_display(c, data.get("displayId"))
+                    if not target:
+                        return self.send_json(404, {"ok": False, "error": "对方不存在"})
+                    c.execute("DELETE FROM friend_blocks WHERE owner=? AND blocked=?",
+                              (me["install_id"], target["install_id"]))
+                    c.commit()
+                    return self.send_json(200, {"ok": True})
+                finally:
+                    c.close()
             return self.send_json(404, {"ok": False})
         except Exception as e:
             return self.send_json(400, {"ok": False, "error": str(e)[:120]})
@@ -293,6 +809,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 rows = c.execute("""
                     SELECT u.install_id, u.display_id, u.nickname, u.last_seen, u.version, u.banned,
+                           u.admin_note,
                            (SELECT COUNT(*) FROM fb_messages m WHERE m.install_id=u.install_id AND m.sender='user' AND m.read_by_admin=0) AS unread,
                            (SELECT body FROM fb_messages m WHERE m.install_id=u.install_id ORDER BY m.id DESC LIMIT 1) AS last_body,
                            (SELECT created_at FROM fb_messages m WHERE m.install_id=u.install_id ORDER BY m.id DESC LIMIT 1) AS last_at,
@@ -301,8 +818,9 @@ class Handler(BaseHTTPRequestHandler):
                 """, (ADMIN_INSTALL,)).fetchall()
                 return self.send_json(200, {"ok": True, "unread": fb_unread_for_admin(c), "threads": [{
                     "installId": r[0], "displayId": r[1], "nickname": r[2], "lastSeen": r[3],
-                    "version": r[4], "banned": int(r[5] or 0), "unread": int(r[6] or 0),
-                    "lastBody": r[7] or "", "lastAt": r[8] or "", "lastId": int(r[9] or 0)} for r in rows]})
+                    "version": r[4], "banned": int(r[5] or 0), "adminNote": r[6] or "",
+                    "unread": int(r[7] or 0), "lastBody": r[8] or "", "lastAt": r[9] or "",
+                    "lastId": int(r[10] or 0)} for r in rows]})
             finally:
                 c.close()
         if u.path == "/api/feedback/admin/thread":
@@ -319,7 +837,150 @@ class Handler(BaseHTTPRequestHandler):
                 msgs = fb_row_messages(c, iid, since, limit=500, mark="admin")
                 return self.send_json(200, {"ok": True, "messages": msgs,
                     "displayId": user["display_id"], "nickname": user["nickname"],
-                    "version": user["version"] or "", "lastSeen": user["last_seen"] or ""})
+                    "version": user["version"] or "", "lastSeen": user["last_seen"] or "",
+                    "banned": int(user["banned"] or 0), "adminNote": user["admin_note"] or ""})
+            finally:
+                c.close()
+        if u.path == "/api/friend/status":
+            c = db()
+            try:
+                return self.send_json(200, {"ok": True, "enabled": fr_social_enabled(c)})
+            finally:
+                c.close()
+        if u.path == "/api/friend/lookup":
+            c = db()
+            try:
+                me = fb_user_by_token(c, (q.get("token") or [""])[0])
+                if not me:
+                    return self.send_json(401, {"ok": False, "error": "token 无效"})
+                if fr_is_banned(me):
+                    return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                guard = fr_require_social(c)
+                if guard:
+                    return self.send_json(*guard)
+                now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+                rate_error = fr_lookup_allowed(c, me["install_id"], now)
+                if rate_error:
+                    return self.send_json(429, {"ok": False, "error": rate_error})
+                target = fr_by_display(c, (q.get("displayId") or [""])[0])
+                if not target or fr_is_banned(target):
+                    return self.send_json(404, {"ok": False, "error": "没找到这个短号，确认一下是否输错"})
+                if target["install_id"] == me["install_id"]:
+                    return self.send_json(400, {"ok": False, "error": "这是你自己的短号"})
+                outgoing = c.execute(
+                    "SELECT 1 FROM friend_requests WHERE from_id=? AND to_id=? AND status='pending'",
+                    (me["install_id"], target["install_id"])).fetchone() is not None
+                incoming = c.execute(
+                    "SELECT 1 FROM friend_requests WHERE from_id=? AND to_id=? AND status='pending'",
+                    (target["install_id"], me["install_id"])).fetchone() is not None
+                return self.send_json(200, {
+                    "ok": True,
+                    "displayId": target["display_id"], "nickname": target["nickname"],
+                    "isFriend": fr_are_friends(c, me["install_id"], target["install_id"]),
+                    "requestPending": bool(outgoing or incoming),
+                    "blocked": fr_blocked(c, me["install_id"], target["install_id"]),
+                })
+            finally:
+                c.close()
+        if u.path == "/api/friend/blocked":
+            c = db()
+            try:
+                me = fb_user_by_token(c, (q.get("token") or [""])[0])
+                if not me:
+                    return self.send_json(401, {"ok": False, "error": "token 无效"})
+                rows = c.execute("""
+                    SELECT u.display_id, u.nickname, b.created_at
+                    FROM friend_blocks b JOIN fb_users u ON u.install_id=b.blocked
+                    WHERE b.owner=? ORDER BY b.created_at DESC LIMIT 100
+                """, (me["install_id"],)).fetchall()
+                return self.send_json(200, {"ok": True, "blocked": [
+                    {"displayId": r[0], "nickname": r[1], "createdAt": r[2]} for r in rows]})
+            finally:
+                c.close()
+        if u.path == "/api/friend/admin/reports":
+            token = (q.get("token") or [""])[0]
+            if not hmac.compare_digest(token, TOKEN):
+                return self.send_json(403, {"ok": False, "error": "forbidden"})
+            c = db()
+            try:
+                rows = c.execute("""
+                    SELECT r.id, ru.display_id, ru.nickname, tu.display_id, tu.nickname, tu.banned,
+                           r.message_id, r.reason, r.detail, r.status, r.created_at
+                    FROM friend_reports r
+                    LEFT JOIN fb_users ru ON ru.install_id=r.reporter
+                    LEFT JOIN fb_users tu ON tu.install_id=r.target
+                    ORDER BY CASE WHEN r.status='open' THEN 0 ELSE 1 END, r.id DESC LIMIT 100
+                """).fetchall()
+                return self.send_json(200, {
+                    "ok": True, "enabled": fr_social_enabled(c),
+                    "reports": [{
+                        "id": r[0], "reporterDisplay": r[1] or "", "reporterNick": r[2] or "",
+                        "targetDisplay": r[3] or "", "targetNick": r[4] or "",
+                        "targetBanned": int(r[5] or 0), "messageId": int(r[6] or 0),
+                        "reason": r[7] or "", "detail": r[8] or "", "status": r[9] or "",
+                        "createdAt": r[10] or ""} for r in rows]})
+            finally:
+                c.close()
+        if u.path == "/api/friend/admin/config":
+            token = (q.get("token") or [""])[0]
+            if not hmac.compare_digest(token, TOKEN):
+                return self.send_json(403, {"ok": False, "error": "forbidden"})
+            c = db()
+            try:
+                return self.send_json(200, {"ok": True, "enabled": fr_social_enabled(c)})
+            finally:
+                c.close()
+        # ---------- 好友 ----------
+        if u.path == "/api/friend/list":
+            c = db()
+            try:
+                me = fb_user_by_token(c, (q.get("token") or [""])[0])
+                if not me:
+                    return self.send_json(401, {"ok": False, "error": "token 无效"})
+                if fr_is_banned(me):
+                    return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                iid = me["install_id"]
+                return self.send_json(200, {
+                    "ok": True,
+                    "enabled": fr_social_enabled(c),
+                    "me": {"displayId": me["display_id"], "nickname": me["nickname"]},
+                    "unread": fr_total_unread(c, iid),
+                    "requests": fr_pending_requests(c, iid),
+                    "friends": fr_friend_rows(c, iid),
+                })
+            finally:
+                c.close()
+        if u.path == "/api/friend/requests":
+            c = db()
+            try:
+                me = fb_user_by_token(c, (q.get("token") or [""])[0])
+                if not me:
+                    return self.send_json(401, {"ok": False, "error": "token 无效"})
+                return self.send_json(200, {"ok": True, "requests": fr_pending_requests(c, me["install_id"])})
+            finally:
+                c.close()
+        if u.path == "/api/friend/thread":
+            c = db()
+            try:
+                me = fb_user_by_token(c, (q.get("token") or [""])[0])
+                if not me:
+                    return self.send_json(401, {"ok": False, "error": "token 无效"})
+                if fr_is_banned(me):
+                    return self.send_json(403, {"ok": False, "error": "该账号已被限制使用好友功能"})
+                target = fr_by_display(c, (q.get("displayId") or [""])[0])
+                if not target:
+                    return self.send_json(404, {"ok": False, "error": "对方不存在"})
+                if not fr_are_friends(c, me["install_id"], target["install_id"]):
+                    return self.send_json(403, {"ok": False, "error": "还不是好友"})
+                since = int((q.get("since_id") or ["0"])[0] or 0)
+                msgs = fr_thread(c, me["install_id"], target["install_id"], since)
+                return self.send_json(200, {
+                    "ok": True, "messages": msgs,
+                    "nickname": target["nickname"],
+                    "remark": fr_remark_of(c, me["install_id"], target["install_id"]),
+                    "displayId": target["display_id"],
+                    "unread": fr_total_unread(c, me["install_id"]),
+                })
             finally:
                 c.close()
         if u.path == "/feedback":
@@ -327,6 +988,11 @@ class Handler(BaseHTTPRequestHandler):
             if not hmac.compare_digest(token, TOKEN):
                 return self.send_html(403, "<h1>403</h1><p>反馈后台需要私有 token。</p>")
             return self.send_html(200, fb_admin_page(html.escape(token, quote=True)))
+        if u.path == "/moderation":
+            token = (q.get("token") or [""])[0]
+            if not hmac.compare_digest(token, TOKEN):
+                return self.send_html(403, "<h1>403</h1><p>治理后台需要私有 token。</p>")
+            return self.send_html(200, moderation_page(html.escape(token, quote=True)))
         if u.path not in ("/stats", "/api/stats/summary"): return self.send_json(404, {"ok": False})
         token = (q.get("token") or [""])[0]
         if not hmac.compare_digest(token, TOKEN): return self.send_html(403, "<h1>403</h1><p>统计页需要私有 token。</p>")
@@ -368,6 +1034,9 @@ main{display:flex;height:100vh}
 .head{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.10);display:flex;align-items:center;gap:10px}
 .head .who{font-weight:600}
 .head .meta{color:#7c8ba1;font-size:11px}
+.head .actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+button.small{height:30px;padding:0 10px;font-size:12px}
+button.danger{background:#dc2626}
 .msgs{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
 .msg{max-width:68%;padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
 .msg.user{align-self:flex-start;background:rgba(255,255,255,.09);border-bottom-left-radius:4px}
@@ -380,7 +1049,7 @@ button{background:#2563eb;color:#fff;border:0;border-radius:12px;padding:0 18px;
 button:disabled{opacity:.5;cursor:default}
 .empty{flex:1;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px}
 </style></head><body><main>
-<div class=side><h1>意见反馈</h1><div class=hint>只收到匿名短号与消息正文，不含姓名、学号、密码。点会话即可回复。</div><div class=list id=list></div></div>
+<div class=side><h1>意见反馈</h1><div class=hint>只收到匿名短号与消息正文，不含姓名、学号、密码。点会话即可回复。<a href="/moderation?token=__TOKEN__" style="color:#93c5fd">好友治理 →</a></div><div class=list id=list></div></div>
 <div class=chat id=chat><div class=empty>从左侧选一个会话来回复</div></div>
 </main>
 <script>
@@ -412,13 +1081,45 @@ async function loadThreads(){
 function renderHead(){
   if (!current) return;
   $('chat').innerHTML = `
-    <div class=head><div><div class=who></div><div class=meta></div></div></div>
+    <div class=head><div><div class=who></div><div class=meta></div></div>
+      <div class=actions><button class="small" id=noteBtn>编辑备注</button><button class="small danger" id=banBtn></button></div></div>
     <div class=msgs id=msgs></div>
     <div class=composer><textarea id=input placeholder="回复这条反馈…（Enter 发送，Shift+Enter 换行）"></textarea><button id=send>发送</button></div>`;
   $('chat').querySelector('.who').textContent = current.nickname + ' · ' + current.displayId;
-  $('chat').querySelector('.meta').textContent = '版本 ' + (current.version||'未知') + ' · 最近活跃 ' + fmt(current.lastSeen||'');
+  updateHead();
+  $('noteBtn').onclick = editNote;
+  $('banBtn').onclick = toggleBan;
   $('send').onclick = sendReply;
   $('input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendReply(); } });
+}
+function updateHead(){
+  if (!current) return;
+  const meta = $('chat').querySelector('.meta');
+  if (meta) meta.textContent = '版本 ' + (current.version||'未知') + ' · 最近活跃 ' + fmt(current.lastSeen||'') + (current.adminNote ? ' · 备注：' + current.adminNote : '');
+  const banBtn = $('banBtn');
+  if (banBtn) banBtn.textContent = current.banned ? '解封' : '封禁';
+}
+async function editNote(){
+  if (!current) return;
+  const note = prompt('给这个用户加后台备注（仅管理员可见，留空可清除）', current.adminNote || '');
+  if (note === null) return;
+  try {
+    const r = await fetch('/api/feedback/admin/note', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: TOKEN, install_id: current.installId, note})});
+    const d = await r.json();
+    if (d.ok){ current.adminNote = d.adminNote || ''; updateHead(); loadThreads(); }
+    else alert(d.error || '保存失败');
+  } catch(e){ alert('网络异常'); }
+}
+async function toggleBan(){
+  if (!current) return;
+  const next = !current.banned;
+  if (!confirm((next ? '封禁' : '解封') + '「' + (current.nickname || current.displayId) + '」？封禁后该用户不能再用好友/反馈发送。')) return;
+  try {
+    const r = await fetch('/api/feedback/admin/ban', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: TOKEN, install_id: current.installId, banned: next})});
+    const d = await r.json();
+    if (d.ok){ current.banned = next ? 1 : 0; updateHead(); loadThreads(); }
+    else alert(d.error || '操作失败');
+  } catch(e){ alert('网络异常'); }
 }
 function appendMsgs(list){
   const box = $('msgs'); if (!box) return;
@@ -457,6 +1158,105 @@ setInterval(async () => { if (!current) return; const d = await api('/api/feedba
 
 def fb_admin_page(token):
     return FB_ADMIN_HTML.replace("__TOKEN__", token)
+
+
+MODERATION_HTML = """<!doctype html><html lang=zh-CN><head><meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'><title>北化课表 · 好友治理</title>
+<style>
+*{box-sizing:border-box}
+body{background:#0b1220;color:#e5edff;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;padding:24px}
+main{max-width:980px;margin:auto}
+h1{font-size:22px;margin:0 0 6px}
+.muted{color:#94a3b8;font-size:12px;line-height:1.7}
+.card{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:16px;margin:18px 0}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:8px 12px;font-size:13px;cursor:pointer}
+button.danger{background:#dc2626}button.ghost{background:rgba(255,255,255,.10)}
+button:disabled{opacity:.5;cursor:default}
+.report{border-top:1px solid rgba(255,255,255,.08);padding:12px 0;display:flex;gap:14px;align-items:flex-start}
+.report:first-child{border-top:0}
+.report .body{flex:1;min-width:0}
+.report .title{font-weight:600;font-size:14px}
+.report .meta{color:#94a3b8;font-size:12px;margin-top:5px;line-height:1.6;word-break:break-word}
+.badge{display:inline-block;border-radius:8px;padding:1px 7px;font-size:11px;background:rgba(239,68,68,.20);color:#fca5a5;margin-left:6px}
+.badge.ok{background:rgba(34,197,94,.18);color:#86efac}
+.empty{color:#64748b;font-size:13px;padding:10px 0}
+a{color:#93c5fd}
+</style></head><body><main>
+<h1>好友治理</h1>
+<div class=muted>处理举报、查看封禁状态、控制好友功能总开关。只展示匿名短号和昵称，不含学号密码。<a href="/feedback?token=__TOKEN__">去意见反馈后台</a></div>
+<div class=card><div class=row><b>好友功能：</b><span id=state>加载中…</span><button id=toggle>切换</button></div><div class=muted id=hint></div></div>
+<div class=card><div class=row><b>举报记录</b><span class=muted id=count></span></div><div id=list class=empty>加载中…</div></div>
+<script>
+const TOKEN = "__TOKEN__";
+let enabled = true;
+const $ = id => document.getElementById(id);
+const fmt = s => { try { return new Date(s).toLocaleString('zh-CN',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); } catch(e){ return s; } };
+async function api(path){ const r = await fetch(path + (path.includes('?')?'&':'?') + 'token=' + encodeURIComponent(TOKEN)); return r.json(); }
+function renderState(){
+  $('state').textContent = enabled ? '开启' : '已关闭';
+  $('state').className = enabled ? 'badge ok' : 'badge';
+  $('toggle').textContent = enabled ? '关闭好友功能' : '开启好友功能';
+  $('hint').textContent = enabled ? '关闭后 App 仍能查看历史消息，但不能再添加好友、查短号或发送新消息。' : '当前所有好友写操作会被拒绝，适合临时止血。';
+  $('toggle').onclick = async () => {
+    $('toggle').disabled = true;
+    try {
+      const r = await fetch('/api/friend/admin/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: TOKEN, enabled: !enabled})});
+      const d = await r.json();
+      if (d.ok){ enabled = d.enabled; renderState(); }
+      else alert(d.error || '操作失败');
+    } catch(e){ alert('网络异常'); }
+    $('toggle').disabled = false;
+  };
+}
+function renderReports(d){
+  enabled = d.enabled;
+  renderState();
+  const reports = d.reports || [];
+  $('count').textContent = reports.filter(r => r.status === 'open').length + ' 条待处理';
+  const box = $('list'); box.innerHTML = '';
+  if (!reports.length){ box.className = 'empty'; box.textContent = '还没有人举报'; return; }
+  box.className = '';
+  reports.forEach(r => {
+    const el = document.createElement('div'); el.className = 'report';
+    const body = document.createElement('div'); body.className = 'body';
+    const title = document.createElement('div'); title.className = 'title';
+    title.textContent = (r.reporterNick || '匿名') + ' 举报 ' + (r.targetNick || '已注销用户');
+    if (r.targetBanned) { const b = document.createElement('span'); b.className='badge'; b.textContent='已封禁'; title.appendChild(b); }
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.textContent = '举报人 ' + (r.reporterDisplay || '-') + ' · 被举报人 ' + (r.targetDisplay || '-') +
+      ' · ' + (r.reason || '其他') + (r.messageId ? ' · 消息 #' + r.messageId : '') +
+      ' · ' + fmt(r.createdAt) + (r.detail ? '\\n' + r.detail : '') +
+      ' · 状态：' + ({open:'待处理',banned:'已封禁',resolved:'已处理'}[r.status] || r.status);
+    body.appendChild(title); body.appendChild(meta);
+    const actions = document.createElement('div');
+    if (r.status === 'open' && !r.targetBanned){
+      const ban = document.createElement('button'); ban.className='danger'; ban.textContent='封禁并处理';
+      ban.onclick = () => act(r.id, 'ban');
+      const ok = document.createElement('button'); ok.className='ghost'; ok.textContent='已处理';
+      ok.onclick = () => act(r.id, 'resolve');
+      actions.appendChild(ban); actions.appendChild(ok);
+    }
+    el.appendChild(body); el.appendChild(actions); box.appendChild(el);
+  });
+}
+async function act(id, action){
+  if (!confirm(action === 'ban' ? '封禁被举报用户并标记为已处理？' : '标记这条举报为已处理？')) return;
+  try {
+    const r = await fetch('/api/friend/admin/report-action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: TOKEN, reportId: id, action})});
+    const d = await r.json();
+    if (d.ok) load(); else alert(d.error || '操作失败');
+  } catch(e){ alert('网络异常'); }
+}
+async function load(){
+  try { const d = await api('/api/friend/admin/reports'); if (d.ok) renderReports(d); else $('list').textContent = d.error || '加载失败'; } catch(e){ $('list').textContent = '网络异常'; }
+}
+load(); setInterval(load, 10000);
+</script></body></html>"""
+
+
+def moderation_page(token):
+    return MODERATION_HTML.replace("__TOKEN__", token)
 
 
 class Server(ThreadingHTTPServer):

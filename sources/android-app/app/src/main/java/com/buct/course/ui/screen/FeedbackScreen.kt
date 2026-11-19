@@ -53,6 +53,8 @@ import com.buct.course.ui.system.GlassToaster
 import com.buct.course.ui.system.SystemDialog
 import com.buct.course.ui.system.SystemPrimaryButton
 import com.buct.course.ui.system.SystemSecondaryButton
+import com.buct.course.ui.system.SystemIconButton
+import com.buct.course.ui.system.SystemTopBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -125,37 +127,20 @@ fun FeedbackScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
             .imePadding()
             .navigationBarsPadding()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+        SystemTopBar(
+            title = "意见反馈",
+            subtitle = "和开发者直接聊，5 秒自动刷新",
+            navigationIcon = {
+                SystemIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onSurface
+                    onClick = onBack
                 )
             }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "意见反馈",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "和开发者直接聊，5 秒自动刷新",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        )
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(

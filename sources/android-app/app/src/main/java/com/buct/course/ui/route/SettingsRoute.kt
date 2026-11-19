@@ -43,7 +43,6 @@ import com.buct.course.network.CourseApiClient
 import com.buct.course.ui.screen.SettingsScreen
 import com.buct.course.update.UpdateDialog
 import com.buct.course.update.rememberUpdateState
-import com.buct.course.ui.screen.SchoolAdaptationFlow
 import com.buct.course.activation.ActivationManager
 import com.buct.course.manager.StudentLimitManager
 import androidx.compose.material3.IconButton

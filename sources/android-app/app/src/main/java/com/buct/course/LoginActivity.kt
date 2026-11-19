@@ -18,8 +18,6 @@ import com.buct.course.manager.UserManager
 import com.buct.course.model.SchoolConfig
 import com.buct.course.network.CourseApiClient
 import com.buct.course.ui.screen.LoginScreen
-import com.buct.course.ui.screen.SchoolAdaptationCompletionReminder
-import com.buct.course.ui.screen.SchoolAdaptationFlow
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import com.buct.course.ui.theme.CourseSelectorTheme
@@ -165,7 +163,6 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
             CourseSelectorTheme {
                 // Use mutableStateOf for reactive schools list
                 var schools by remember { mutableStateOf(UserManager.getInstance().supportedSchools) }
-                var showSchoolAdaptation by remember { mutableStateOf(false) }
                 
                 // 🔧 强化版学校选择记忆逻辑
                 LaunchedEffect(schools) {
@@ -182,13 +179,7 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
                     }
                 }
                 
-                // 如果正在自动验证，显示加载状态
-                if (showSchoolAdaptation) {
-                    SchoolAdaptationFlow(
-                        onNavigateBack = { showSchoolAdaptation = false }
-                    )
-                } else {
-                    LoginScreen(
+                LoginScreen(
                     onBack = if (intent.getBooleanExtra(EXTRA_RETURN_TO_CALLER, false)) {
                         { onBackPressedDispatcher.onBackPressed() }
                     } else null,
@@ -215,9 +206,6 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
                     },
                     onDemoMode = {
                         handleDemoMode()
-                    },
-                    onSchoolAdaptation = {
-                        showSchoolAdaptation = true
                     },
                     onPasswordLogin = { username, password ->
                         handlePasswordLogin(username, password)
@@ -304,14 +292,6 @@ class LoginActivity : androidx.fragment.app.FragmentActivity() {
                         discardPendingPasswordLogin()
                         errorMessage = "已取消，账号未绑定"
                     }
-                )
-                }
-                SchoolAdaptationCompletionReminder(
-                    enabled = !showSchoolAdaptation &&
-                        !showBindingDialog &&
-                        captchaImageBytes == null &&
-                        !isLoading &&
-                        !isAutoValidating
                 )
             }
         }

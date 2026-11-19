@@ -250,7 +250,7 @@ private fun rememberScheduleHeaderMetrics(availableWidth: Dp): ScheduleHeaderMet
         val actionReserve = 276.dp * density.fontScale.coerceAtLeast(1f)
         val titleAvailable = (availableWidth - PagePadding * 2 - actionReserve - 8.dp).coerceAtLeast(0.dp)
         val prefixSize = if (availableWidth < 380.dp) 12.sp else 14.sp
-        val expandedStyle = titleStyle.copy(fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+        val expandedStyle = titleStyle.copy(fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
         val collapsedStyle = expandedStyle.copy(fontSize = 17.sp)
         val prefixStyle = titleStyle.copy(fontSize = prefixSize, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp)
         val segmentMinimum = textWidth("本学期", segmentStyle) * 2 + 30.dp
@@ -808,7 +808,7 @@ fun WeekHeaderCompact(
                                     alpha = (1f - kotlin.math.abs(weekOffset) * 2f).coerceIn(0f, 1f)
                                     translationX = -weekOffset * 12.dp.toPx()
                                 },
-                                fontSize = lerpSp(26f, 17f, collapse),
+                                fontSize = lerpSp(28f, 17f, collapse),
                                 fontWeight = FontWeight.Bold,
                                 color = titleColor,
                                 letterSpacing = 0.sp,

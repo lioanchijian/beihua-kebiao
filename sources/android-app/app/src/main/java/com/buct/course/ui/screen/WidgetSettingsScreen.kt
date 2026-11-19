@@ -46,6 +46,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.buct.course.manager.UserManager
 import com.buct.course.ui.system.InsetGroupedRow
 import com.buct.course.ui.system.InsetGroupedSection
+import com.buct.course.ui.system.PagePadding
+import com.buct.course.ui.system.SectionSpacing
 import com.buct.course.ui.system.SystemIconButton
 import com.buct.course.ui.system.SystemTopBar
 import com.buct.course.ui.widget.WidgetConfigActivity
@@ -120,7 +122,6 @@ fun WidgetSettingsScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
     ) {
         SystemTopBar(
             title = "桌面小组件",
@@ -135,9 +136,9 @@ fun WidgetSettingsScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = PagePadding)
                     .padding(top = 4.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                verticalArrangement = Arrangement.spacedBy(SectionSpacing)
             ) {
                 InsetGroupedSection(
                     header = if (rows.isEmpty()) "桌面上还没有小组件" else "桌面上已添加 ${rows.size} 个小组件",

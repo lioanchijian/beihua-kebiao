@@ -32,6 +32,34 @@ object WidgetProviders {
     fun isDayComponent(context: Context, component: ComponentName): Boolean =
         day(context).any { it == component }
 
+    /**
+     * 解析某个实例真正绑定的 provider。
+     *
+     * 1.0.9.15 起逻辑类搬到了 com.buct.course.widget，但桌面老实例仍绑在
+     * com.tyust.course.widget 兼容壳上。箭头等广播必须发到这个真实 provider，
+     * 不能直接写 ScheduleWidget::class.java，否则会投递到未注册的新类而被系统丢弃。
+     */
+    fun providerFor(
+        context: Context,
+        manager: AppWidgetManager,
+        appWidgetId: Int,
+        isDay: Boolean
+    ): ComponentName {
+        manager.getAppWidgetInfo(appWidgetId)?.provider?.let { return it }
+
+        val candidates = if (isDay) day(context) else week(context)
+        candidates.firstOrNull { component ->
+            runCatching { manager.getAppWidgetIds(component).contains(appWidgetId) }
+                .getOrDefault(false)
+        }?.let { return it }
+
+        // 极端情况下拿不到实例信息时，回落到 Manifest 确实注册的兼容壳。
+        return ComponentName(
+            context.packageName,
+            if (isDay) LEGACY_DAY else LEGACY_WEEK
+        )
+    }
+
     /** 指定一组组件上已添加实例的 id。 */
     fun idsFor(components: List<ComponentName>, manager: AppWidgetManager): IntArray =
         components.flatMap { component ->

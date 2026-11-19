@@ -1,5 +1,6 @@
 package com.buct.course.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.buct.course.schedule.ScheduleJson
 import com.buct.course.ui.system.GlassCircleButton
+import com.buct.course.ui.system.PagePadding
 import com.buct.course.ui.system.SystemIconButton
 import com.buct.course.ui.system.SystemTopBar
 import com.buct.course.ui.system.glass.adaptiveGlassChip
@@ -73,14 +75,17 @@ fun FriendSchedulePreview(
     }
     var week by remember { mutableIntStateOf(1) }
 
+    // 预览页盖在会话之上：系统返回优先关预览，回到会话本身。
+    BackHandler(onBack = onBack)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
     ) {
         SystemTopBar(
             title = "$title 的课表",
             subtitle = "${courses.size} 门课 · 只读",
+            titleMaxLines = 1,
             navigationIcon = {
                 SystemIconButton(Icons.AutoMirrored.Filled.ArrowBack, "返回", onBack)
             }
@@ -90,7 +95,7 @@ fun FriendSchedulePreview(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+                .padding(horizontal = PagePadding, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {

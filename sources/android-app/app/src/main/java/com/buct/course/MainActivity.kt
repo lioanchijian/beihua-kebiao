@@ -100,7 +100,6 @@ import com.buct.course.manager.AppearanceSettingsManager
 import com.buct.course.manager.SmartSelector
 import com.buct.course.manager.UserManager
 import com.buct.course.ui.screen.OnboardingScreen
-import com.buct.course.ui.screen.SchoolAdaptationCompletionReminder
 import com.buct.course.ui.system.CapsuleNavigationBar
 import com.buct.course.ui.system.DialogHost
 import com.buct.course.ui.system.GlassToastHost
@@ -403,10 +402,6 @@ fun MainScreen(fragmentActivity: FragmentActivity) {
         }
     }
 
-    SchoolAdaptationCompletionReminder(
-        enabled = !isDemoMode && !session.expired && startupOverlaysReady && !showStarDialog,
-        accountScopeKey = currentAccountStorageKey
-    )
     GlassOverlayHost(modifier = Modifier.fillMaxSize()) {
         val useGlass = isBackdropSupported()
         // debug 平铺水印的开关。**它绝不能进任何 backdrop 捕获层**，见文件末尾

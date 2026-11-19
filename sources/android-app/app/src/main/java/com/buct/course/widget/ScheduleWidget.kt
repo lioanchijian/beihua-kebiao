@@ -25,11 +25,13 @@ open class ScheduleWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
-        if (intent.action == ACTION_PREV_WEEK || intent.action == ACTION_NEXT_WEEK) {
+        val isPrev = intent.action == ACTION_PREV_WEEK || intent.action == LEGACY_ACTION_PREV_WEEK
+        val isNext = intent.action == ACTION_NEXT_WEEK || intent.action == LEGACY_ACTION_NEXT_WEEK
+        if (isPrev || isNext) {
             val widgetPrefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
             var currentWeek = widgetPrefs.getInt("current_week", getDefaultWeek())
 
-            if (intent.action == ACTION_PREV_WEEK) {
+            if (isPrev) {
                 currentWeek = (currentWeek - 1).coerceAtLeast(1)
             } else {
                 currentWeek += 1
@@ -43,7 +45,7 @@ open class ScheduleWidget : AppWidgetProvider() {
             // 增量刷新：标题用 partialUpdate 局部更新，列表用 notify 让 Service 重读周数，
             // 不再整卡重建（避免切换缓慢 + 按钮 PendingIntent 被重置导致点击不稳定）
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val ids = appWidgetManager.getAppWidgetIds(intent.component)
+            val ids = WidgetProviders.weekIds(context, appWidgetManager)
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_schedule)
                 views.setTextViewText(R.id.widget_week_info, weekInfoText(currentWeek))
@@ -52,7 +54,7 @@ open class ScheduleWidget : AppWidgetProvider() {
                 appWidgetManager.partiallyUpdateAppWidget(intArrayOf(id), views)
             }
             appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list)
-        } else if (intent.action == "com.buct.course.widget.REFRESH_WIDGET") {
+        } else if (intent.action == ACTION_REFRESH) {
             // 主题变化，刷新所有小组件
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val ids = WidgetProviders.weekIds(context, appWidgetManager)
@@ -74,6 +76,11 @@ open class ScheduleWidget : AppWidgetProvider() {
         const val ACTION_PREV_WEEK = "com.buct.course.widget.PREV_WEEK"
         const val ACTION_NEXT_WEEK = "com.buct.course.widget.NEXT_WEEK"
         const val ACTION_REFRESH = "com.buct.course.widget.REFRESH_WIDGET"
+
+        // 1.0.9.15 之前已经绑在 launcher 里的旧 PendingIntent 仍可能带着旧 action。
+        // 升级后先兼容它们，等下一次 onUpdate 重绑新 PendingIntent 后再自然淘汰。
+        private const val LEGACY_ACTION_PREV_WEEK = "com.tyust.course.widget.PREV_WEEK"
+        private const val LEGACY_ACTION_NEXT_WEEK = "com.tyust.course.widget.NEXT_WEEK"
 
         /** 通知桌面所有课表小组件重读数据（朋友课表保存/删除后调用）。 */
         fun refreshAllWidgets(context: Context) {
@@ -194,10 +201,13 @@ open class ScheduleWidget : AppWidgetProvider() {
             // 星期表头带上月份和日期，跨月时每一天仍然能看懂属于哪个月。
             bindWeekHeader(views, currentWeek)
 
-            // 设置一周按钮点击事件
-            val prevIntent = Intent(context, ScheduleWidget::class.java).apply {
-                action = ACTION_PREV_WEEK
-            }
+            // 设置一周按钮点击事件：必须发到当前实例真正绑定的 provider。
+            // 老实例绑在 com.tyust.course.widget 兼容壳上，直接写 ScheduleWidget::class.java
+            // 会指向未注册的新类，广播被系统丢弃，表现为箭头完全没反应。
+            val widgetProvider = WidgetProviders.providerFor(
+                context, appWidgetManager, appWidgetId, isDay = false
+            )
+            val prevIntent = Intent().setComponent(widgetProvider).setAction(ACTION_PREV_WEEK)
             val prevPendingIntent = PendingIntent.getBroadcast(
                 context, 0, prevIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -205,9 +215,7 @@ open class ScheduleWidget : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_prev_week, prevPendingIntent)
 
             // 设置下一周按钮点击事件
-            val nextIntent = Intent(context, ScheduleWidget::class.java).apply {
-                action = ACTION_NEXT_WEEK
-            }
+            val nextIntent = Intent().setComponent(widgetProvider).setAction(ACTION_NEXT_WEEK)
             val nextPendingIntent = PendingIntent.getBroadcast(
                 context, 1, nextIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

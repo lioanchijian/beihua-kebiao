@@ -22,6 +22,11 @@ open class ScheduleDayWidget : AppWidgetProvider() {
         const val ACTION_DAY_PREV = "com.buct.course.widget.DAY_PREV"
         const val ACTION_DAY_NEXT = "com.buct.course.widget.DAY_NEXT"
         const val ACTION_DAY_TODAY = "com.buct.course.widget.DAY_TODAY"
+
+        // 1.0.9.15 之前已绑在 launcher 里的旧 PendingIntent 兼容。
+        private const val LEGACY_ACTION_DAY_PREV = "com.tyust.course.widget.DAY_PREV"
+        private const val LEGACY_ACTION_DAY_NEXT = "com.tyust.course.widget.DAY_NEXT"
+        private const val LEGACY_ACTION_DAY_TODAY = "com.tyust.course.widget.DAY_TODAY"
         private const val PREFS = "day_widget_prefs"
         private const val KEY_OFFSET = "day_offset"
         private const val semesterStartDate = 1788192000000L
@@ -89,9 +94,14 @@ open class ScheduleDayWidget : AppWidgetProvider() {
             // 回到今天按钮高亮（非今天时显示）
             views.setTextViewText(R.id.widget_back_today, if (offset == 0) "今天" else "回到今天")
 
-            // 导航按钮
+            // 导航按钮：必须发到当前实例真正绑定的 provider。
+            // 老实例绑在 com.tyust.course.widget 兼容壳上；直接写 ScheduleDayWidget::class.java
+            // 会指向未注册的新类，广播被系统丢弃，表现为左右箭头/回到今天完全没反应。
+            val widgetProvider = WidgetProviders.providerFor(
+                context, AppWidgetManager.getInstance(context), appWidgetId, isDay = true
+            )
             fun pending(action: String, requestCode: Int): PendingIntent {
-                val intent = Intent(context, ScheduleDayWidget::class.java).setAction(action)
+                val intent = Intent().setComponent(widgetProvider).setAction(action)
                 return PendingIntent.getBroadcast(
                     context, requestCode, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -194,12 +204,14 @@ open class ScheduleDayWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
-            ACTION_DAY_PREV, ACTION_DAY_NEXT, ACTION_DAY_TODAY -> {
+            ACTION_DAY_PREV, LEGACY_ACTION_DAY_PREV,
+            ACTION_DAY_NEXT, LEGACY_ACTION_DAY_NEXT,
+            ACTION_DAY_TODAY, LEGACY_ACTION_DAY_TODAY -> {
                 val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 val current = prefs.getInt(KEY_OFFSET, 0)
                 val next = when (intent.action) {
-                    ACTION_DAY_PREV -> current - 1
-                    ACTION_DAY_NEXT -> current + 1
+                    ACTION_DAY_PREV, LEGACY_ACTION_DAY_PREV -> current - 1
+                    ACTION_DAY_NEXT, LEGACY_ACTION_DAY_NEXT -> current + 1
                     else -> 0
                 }
                 prefs.edit().putInt(KEY_OFFSET, next).apply()
@@ -211,7 +223,7 @@ open class ScheduleDayWidget : AppWidgetProvider() {
                     appWidgetManager.partiallyUpdateAppWidget(intArrayOf(id), views)
                 }
             }
-            "com.buct.course.widget.REFRESH_WIDGET" -> {
+            ScheduleWidget.ACTION_REFRESH -> {
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val ids = WidgetProviders.dayIds(context, appWidgetManager)
                 onUpdate(context, appWidgetManager, ids)

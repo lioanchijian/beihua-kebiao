@@ -193,6 +193,7 @@ fun InsetGroupedRow(
     icon: ImageVector? = null,
     iconTint: Color = NeuPrimary,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    titleMaxLines: Int = 2,
     trailing: @Composable (() -> Unit)? = null,
     showDivider: Boolean = true,
     enabled: Boolean = true,
@@ -225,7 +226,7 @@ fun InsetGroupedRow(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (enabled) titleColor else titleColor.copy(alpha = 0.45f),
-                    maxLines = 2,
+                    maxLines = titleMaxLines,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (!subtitle.isNullOrBlank()) {

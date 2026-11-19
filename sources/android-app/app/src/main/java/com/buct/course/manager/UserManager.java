@@ -866,7 +866,6 @@ public class UserManager {
         currentAccountKey = "demo::preview";
         selectedCourses = new ArrayList<>();
         isDemoMode = true;
-        com.buct.course.usage.UsageStatsManager.refreshEligibility();
         isLoggedIn = true;
         if (!sessionState.getToken().getAccountStorageKey().equals(getCurrentAccountStorageKey())) {
             sessionState.replace(getCurrentAccountStorageKey());
@@ -875,7 +874,6 @@ public class UserManager {
 
     public void setDemoMode(boolean demoMode) {
         this.isDemoMode = demoMode;
-        com.buct.course.usage.UsageStatsManager.refreshEligibility();
     }
 
     public boolean isDemoMode() {

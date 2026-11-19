@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.buct.course.ui.system.PagePadding
 import com.buct.course.ui.system.SystemCompactSegmentedControl
 
 /**
@@ -43,7 +44,7 @@ fun CourseSectionRoute() {
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
+                .padding(start = PagePadding, end = PagePadding, top = 10.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SystemCompactSegmentedControl(

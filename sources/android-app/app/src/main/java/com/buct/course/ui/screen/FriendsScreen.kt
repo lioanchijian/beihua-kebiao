@@ -1,5 +1,6 @@
 package com.buct.course.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.buct.course.network.FeedbackApi
 import com.buct.course.network.FriendApi
 import com.buct.course.network.FriendListData
+import com.buct.course.network.FriendLookup
+import com.buct.course.network.BlockedFriend
 import com.buct.course.network.FriendSummary
 import com.buct.course.social.FriendScheduleStore
 import com.buct.course.ui.system.GlassIconChip
@@ -57,6 +60,8 @@ import com.buct.course.ui.system.GlassToaster
 import com.buct.course.ui.system.InsetGroupedRow
 import com.buct.course.ui.system.InsetGroupedSection
 import com.buct.course.ui.system.LocalAppOverlayBottomInset
+import com.buct.course.ui.system.PagePadding
+import com.buct.course.ui.system.SectionSpacing
 import com.buct.course.ui.system.SystemIconButton
 import com.buct.course.ui.system.SystemPrimaryButton
 import com.buct.course.ui.system.SystemTopBar
@@ -86,11 +91,19 @@ fun FriendsScreen(
     var error by remember { mutableStateOf("") }
     var draft by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var lookupBusy by remember { mutableStateOf(false) }
+    var lookupResult by remember { mutableStateOf<FriendLookup?>(null) }
+    var blockedFriends by remember { mutableStateOf<List<BlockedFriend>>(emptyList()) }
     var schedules by remember { mutableStateOf(FriendScheduleStore.list(context)) }
     var pendingDelete by remember { mutableStateOf<FriendScheduleStore.Entry?>(null) }
     var showNicknameDialog by remember { mutableStateOf(false) }
     var nicknameDraft by remember { mutableStateOf("") }
     var savingNickname by remember { mutableStateOf(false) }
+
+    // 作为设置页子页打开时，系统返回键也应回到设置页；底栏一级页不拦截，保留退出行为。
+    if (onBack != null) {
+        BackHandler(onBack = onBack)
+    }
 
     suspend fun refresh() {
         booting = data == null
@@ -106,9 +119,33 @@ fun FriendsScreen(
             error = "拉取好友列表失败，请重试"
         } else {
             data = result
+            blockedFriends = FriendApi.blocked(context).orEmpty()
         }
         schedules = FriendScheduleStore.list(context)
         booting = false
+    }
+
+    fun submitRequest(code: String) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            val result = FriendApi.requestFriend(context, code)
+            busy = false
+            if (result.error != null) {
+                GlassToaster.show(result.error)
+            } else {
+                draft = ""
+                lookupResult = null
+                GlassToaster.show(
+                    when (result.status) {
+                        "accepted" -> "你们互相加过了，已经是好友"
+                        "already" -> "已经是好友了"
+                        else -> "申请已发出，等对方同意"
+                    }
+                )
+                refresh()
+            }
+        }
     }
 
     LaunchedEffect(Unit) { refresh() }
@@ -126,7 +163,6 @@ fun FriendsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .padding(bottom = LocalAppOverlayBottomInset.current)
     ) {
         SystemTopBar(
@@ -143,9 +179,9 @@ fun FriendsScreen(
                 .fillMaxWidth()
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = PagePadding)
                 .padding(top = 4.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(SectionSpacing)
         ) {
             if (booting) {
                 Row(
@@ -222,7 +258,11 @@ fun FriendsScreen(
             // 添加好友
             InsetGroupedSection(
                 header = "添加好友",
-                footer = "输入对方的短号，对方同意后就能互发消息和课表。"
+                footer = if (data?.enabled == false) {
+                    "好友功能暂时关闭，已暂停添加和发送；历史消息仍可查看。"
+                } else {
+                    "先点「查找」预览对方昵称，确认无误再发送申请；对方同意后就能互发消息和课表。"
+                }
             ) {
                 Column(
                     modifier = Modifier
@@ -232,39 +272,91 @@ fun FriendsScreen(
                 ) {
                     GlassTextField(
                         value = draft,
-                        onValueChange = { draft = it.uppercase().take(12) },
+                        onValueChange = {
+                            draft = it.uppercase().take(12)
+                            lookupResult = null
+                        },
                         placeholder = "输入对方短号，如 BH-ABC123",
                         singleLine = true
                     )
-                    SystemPrimaryButton(
-                        text = if (busy) "正在添加…" else "添加",
-                        onClick = {
-                            if (busy) return@SystemPrimaryButton
-                            val code = draft.trim().uppercase()
-                            if (code.length < 4) {
-                                GlassToaster.show("请输入完整短号")
-                                return@SystemPrimaryButton
-                            }
-                            busy = true
-                            scope.launch {
-                                val result = FriendApi.requestFriend(context, code)
-                                busy = false
-                                if (result.error != null) {
-                                    GlassToaster.show(result.error)
-                                } else {
-                                    draft = ""
-                                    GlassToaster.show(
-                                        when (result.status) {
-                                            "accepted" -> "你们互相加过了，已经是好友"
-                                            "already" -> "已经是好友了"
-                                            else -> "申请已发出，等对方同意"
-                                        }
-                                    )
-                                    refresh()
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.buct.course.ui.system.SystemSecondaryButton(
+                            text = if (lookupBusy) "查找中…" else "查找",
+                            onClick = {
+                                if (lookupBusy || busy || data?.enabled == false) return@SystemSecondaryButton
+                                val code = draft.trim().uppercase()
+                                if (code.length < 4) {
+                                    GlassToaster.show("请输入完整短号")
+                                    return@SystemSecondaryButton
                                 }
+                                lookupBusy = true
+                                scope.launch {
+                                    val result = FriendApi.lookup(context, code)
+                                    lookupBusy = false
+                                    if (result.error != null) {
+                                        lookupResult = null
+                                        GlassToaster.show(result.error)
+                                    } else {
+                                        lookupResult = result.data
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        SystemPrimaryButton(
+                            text = if (busy) "正在添加…" else "添加",
+                            onClick = {
+                                if (busy || data?.enabled == false) return@SystemPrimaryButton
+                                val code = draft.trim().uppercase()
+                                if (code.length < 4) {
+                                    GlassToaster.show("请输入完整短号")
+                                    return@SystemPrimaryButton
+                                }
+                                submitRequest(code)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (data?.enabled == false) {
+                        Text(
+                            text = "好友功能暂时关闭，稍后再试。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            // 短号预览结果
+            lookupResult?.let { result ->
+                InsetGroupedSection(header = "搜索结果") {
+                    InsetGroupedRow(
+                        title = result.nickname,
+                        subtitle = buildString {
+                            append(result.displayId)
+                            when {
+                                result.isFriend -> append(" · 已经是好友")
+                                result.blocked -> append(" · 暂时无法添加")
+                                result.requestPending -> append(" · 申请已发出，等对方处理")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        icon = Icons.Outlined.People,
+                        iconTint = accountColor(result.nickname),
+                        titleMaxLines = 1,
+                        showDivider = false,
+                        trailing = {
+                            if (!result.isFriend && !result.blocked && !result.requestPending) {
+                                Text(
+                                    text = "发送申请",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickable { submitRequest(result.displayId) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                     )
                 }
             }
@@ -278,6 +370,7 @@ fun FriendsScreen(
                             subtitle = request.displayId,
                             icon = Icons.Outlined.People,
                             iconTint = accountColor(request.nickname),
+                            titleMaxLines = 1,
                             showDivider = index != requests.lastIndex,
                             trailing = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -331,6 +424,42 @@ fun FriendsScreen(
                 }
             }
 
+            // 黑名单（只有自己能看到）
+            if (blockedFriends.isNotEmpty()) {
+                InsetGroupedSection(
+                    header = "黑名单（${blockedFriends.size}）",
+                    footer = "解除后对方仍需要重新加你，才能再发消息。"
+                ) {
+                    blockedFriends.forEachIndexed { index, friend ->
+                        InsetGroupedRow(
+                            title = friend.nickname.ifBlank { friend.displayId },
+                            subtitle = "${friend.displayId} · 已拉黑",
+                            icon = Icons.Outlined.People,
+                            iconTint = accountColor(friend.nickname),
+                            titleMaxLines = 1,
+                            showDivider = index != blockedFriends.lastIndex,
+                            trailing = {
+                                Text(
+                                    text = "解除",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickable {
+                                            scope.launch {
+                                                val err = FriendApi.unblock(context, friend.displayId)
+                                                GlassToaster.show(err ?: "已解除拉黑")
+                                                refresh()
+                                            }
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
             // 朋友的课表
             InsetGroupedSection(
                 header = "朋友的课表（${schedules.size}）",
@@ -346,6 +475,7 @@ fun FriendsScreen(
                         subtitle = entry.subtitle.ifBlank { "本地课表文件" },
                         icon = Icons.Outlined.CalendarMonth,
                         iconTint = accountColor(entry.label),
+                        titleMaxLines = 1,
                         showDivider = index != schedules.lastIndex,
                         trailing = {
                             IconButton(onClick = { pendingDelete = entry }) {
@@ -471,17 +601,20 @@ private fun FriendRow(
     showDivider: Boolean,
     onOpenChat: (String, String) -> Unit
 ) {
+    val displayName = friend.remark.ifBlank { friend.nickname }
+    val nicknameHint = if (friend.remark.isNotBlank()) "${friend.nickname} · " else ""
     InsetGroupedRow(
-        title = friend.nickname,
+        title = displayName,
         subtitle = when {
-            friend.lastAt.isBlank() -> "${friend.displayId} · 还没有聊过，打个招呼吧"
-            friend.lastKind == "schedule" -> "${friend.displayId} · [课表]"
-            else -> "${friend.displayId} · ${friend.lastBody}"
+            friend.lastAt.isBlank() -> "${nicknameHint}${friend.displayId} · 还没有聊过，打个招呼吧"
+            friend.lastKind == "schedule" -> "${nicknameHint}${friend.displayId} · [课表]"
+            else -> "${nicknameHint}${friend.displayId} · ${friend.lastBody}"
         },
         icon = Icons.Outlined.People,
-        iconTint = accountColor(friend.nickname),
+        iconTint = accountColor(displayName),
+        titleMaxLines = 1,
         showDivider = showDivider,
-        onClick = { onOpenChat(friend.displayId, friend.nickname) },
+        onClick = { onOpenChat(friend.displayId, displayName) },
         trailing = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

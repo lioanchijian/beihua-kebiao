@@ -76,7 +76,6 @@ fun LoginScreen(
     onOpenWebView: () -> Unit = {},
     onSchoolAdded: () -> Unit = {},
     onDemoMode: () -> Unit = {},
-    onSchoolAdaptation: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     isLoading: Boolean = false,
     errorMessage: String? = null,
