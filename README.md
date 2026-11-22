@@ -78,8 +78,9 @@ app\build\outputs\apk\release\app-release.apk
 
 ## 当前版本
 
-- App：`1.0.9.18 (108)`
-- 网站：`1.0.9.18`
+- App：`1.0.9.20 (110)`
+- 签名：`1.0.9.19` 为旧 debug 证书桥接版；`1.0.9.20` 起为正式 release 证书（v3 lineage 轮换）
+- 网站：`1.0.9.20`
 - 统计接口：`https://buctkb.cn/api/stats/ping`
 
 ## 开源协议

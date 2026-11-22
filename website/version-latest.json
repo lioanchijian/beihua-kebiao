@@ -1,0 +1,22 @@
+{
+  "versionCode": 110,
+  "versionName": "1.0.9.20",
+  "releaseNotes": "本次为正式签名切换版，功能和 1.0.9.19 相同。更新后签名会从旧调试证书切换为正式 release 证书，账号、课表和桌面小组件都会保留；更新器已兼容签名轮换，后续更新不需要卸载重装。1.0.9.18 及更早用户请先更新到 1.0.9.19 桥接版，再检查更新到本版本。",
+  "downloadUrl": "https://buctkb.cn/download/beihua-kebiao-latest.apk",
+  "forceUpdate": false,
+  "sha256": "2720e919d0b358d011a1224fef52ff5ffad1639239cdb4b5baaa29ca67bb6933",
+  "downloadSources": [
+    {
+      "name": "官网",
+      "url": "https://buctkb.cn/download/beihua-kebiao-latest.apk"
+    },
+    {
+      "name": "官网直链",
+      "url": "https://buctkb.cn/download/beihua-kebiao-1.0.9.20.apk"
+    },
+    {
+      "name": "备用官网",
+      "url": "https://www.buctkb.cn/download/beihua-kebiao-1.0.9.20.apk"
+    }
+  ]
+}

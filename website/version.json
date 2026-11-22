@@ -1,1 +1,18 @@
-{"versionCode":108,"versionName":"1.0.9.18","releaseNotes":"移除上游遗留的第三方服务依赖；统一各页面布局与玻璃顶栏；好友页长名字单行显示，聊天页标题完整显示；修复好友聊天页按系统返回会退出 App；同时包含好友备注、短号预览、举报与拉黑、消息限流和小组件翻周修复","downloadUrl":"https://buctkb.cn/download/beihua-kebiao-latest.apk","forceUpdate":false,"sha256":"f83f45b949fa7e0c1a7f7b1711bd2962d7ab8149eb1e3a058e7d4a041f1fa26a","downloadSources":[{"name":"官网","url":"https://buctkb.cn/download/beihua-kebiao-latest.apk"},{"name":"官网直链","url":"https://buctkb.cn/download/beihua-kebiao-1.0.9.18.apk"},{"name":"高速下载（OSS）","url":"https://dl.buctkb.cn/dl/beihua-kebiao-1.0.9.18"}]}
+{
+  "versionCode": 109,
+  "versionName": "1.0.9.19",
+  "releaseNotes": "本次更新是正式签名迁移的桥接版，请先更新到此版本；更新后才能在 App 内继续收到后续正式签名版，不更新会停留在旧版。本次更新不会清除账号、课表或桌面小组件。空教室新增列表/课表双视图，内置 2026-2027-1 全校课表快照，研究生和断网用户也能查询；同一老师的重叠课程不再标记冲突。",
+  "downloadUrl": "https://buctkb.cn/download/beihua-kebiao-1.0.9.19.apk",
+  "forceUpdate": false,
+  "sha256": "73784221b5bbe8e67406773d83151bd1b4ebe7e12b8a8f8f6dac1aa5864a571d",
+  "downloadSources": [
+    {
+      "name": "官网",
+      "url": "https://buctkb.cn/download/beihua-kebiao-1.0.9.19.apk"
+    },
+    {
+      "name": "备用官网",
+      "url": "https://www.buctkb.cn/download/beihua-kebiao-1.0.9.19.apk"
+    }
+  ]
+}
